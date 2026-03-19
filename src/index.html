@@ -4,7 +4,159 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DuplicateImageFinder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+/* ── Theme Variables ─────────────────────────────────── */
+:root {
+  /* Light mode (default) */
+  --bg-app: #f8f7f4;
+  --bg-toolbar: rgba(255, 255, 255, 0.72);
+  --bg-toolbar-solid: #ffffff;
+  --bg-panel: #f0efec;
+  --bg-panel-header: #e8e7e3;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f5f4f1;
+  --bg-surface-active: #eeedea;
+  --bg-input: #ffffff;
+  --bg-input-focus: #ffffff;
+  --bg-badge: rgba(0, 0, 0, 0.04);
+  --bg-thumb: #f5f4f1;
+  --bg-progress-track: #e8e7e3;
+  --bg-action-bar: rgba(255, 255, 255, 0.8);
+  --bg-status: rgba(255, 255, 255, 0.6);
+  --bg-empty-icon: rgba(0, 0, 0, 0.03);
+
+  --border-primary: rgba(0, 0, 0, 0.08);
+  --border-secondary: rgba(0, 0, 0, 0.05);
+  --border-input: rgba(0, 0, 0, 0.12);
+  --border-input-focus: #4a7dfc;
+  --border-thumb: rgba(0, 0, 0, 0.06);
+
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #9a9a9a;
+  --text-muted: #b5b5b5;
+  --text-on-accent: #ffffff;
+
+  --accent: #4a7dfc;
+  --accent-hover: #3a6dee;
+  --accent-subtle: rgba(74, 125, 252, 0.08);
+  --accent-glow: rgba(74, 125, 252, 0.2);
+
+  --selected-bg: #4a7dfc;
+  --selected-bg-hover: #3a6dee;
+  --selected-text: #ffffff;
+
+  --danger: #e54d42;
+  --danger-hover: #d43a2f;
+  --danger-subtle: rgba(229, 77, 66, 0.06);
+  --danger-border: rgba(229, 77, 66, 0.15);
+
+  --warning: #d4760a;
+  --warning-subtle: rgba(212, 118, 10, 0.06);
+
+  --btn-bg: #ffffff;
+  --btn-bg-hover: #f5f4f1;
+  --btn-bg-active: #eeedea;
+  --btn-border: rgba(0, 0, 0, 0.1);
+  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  --progress-gradient: linear-gradient(90deg, #4a7dfc, #6c95fd, #4a7dfc);
+  --progress-shine: rgba(255, 255, 255, 0.3);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --toggle-bg: #d4d3d0;
+  --toggle-bg-active: #4a7dfc;
+  --toggle-knob: #ffffff;
+  --toggle-icon-sun: #f0a500;
+  --toggle-icon-moon: #7c8db5;
+
+  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+}
+
+[data-theme="dark"] {
+  --bg-app: #141418;
+  --bg-toolbar: rgba(28, 28, 35, 0.78);
+  --bg-toolbar-solid: #1c1c23;
+  --bg-panel: #1a1a21;
+  --bg-panel-header: #222230;
+  --bg-surface: #1e1e26;
+  --bg-surface-hover: #252530;
+  --bg-surface-active: #2a2a36;
+  --bg-input: #1a1a22;
+  --bg-input-focus: #1e1e28;
+  --bg-badge: rgba(255, 255, 255, 0.05);
+  --bg-thumb: #1a1a22;
+  --bg-progress-track: #252530;
+  --bg-action-bar: rgba(28, 28, 35, 0.85);
+  --bg-status: rgba(20, 20, 24, 0.75);
+  --bg-empty-icon: rgba(255, 255, 255, 0.03);
+
+  --border-primary: rgba(255, 255, 255, 0.06);
+  --border-secondary: rgba(255, 255, 255, 0.04);
+  --border-input: rgba(255, 255, 255, 0.08);
+  --border-input-focus: #5a8afc;
+  --border-thumb: rgba(255, 255, 255, 0.06);
+
+  --text-primary: #e8e8ec;
+  --text-secondary: #8e8e9a;
+  --text-tertiary: #5e5e6a;
+  --text-muted: #44444f;
+  --text-on-accent: #ffffff;
+
+  --accent: #5a8afc;
+  --accent-hover: #6a96fd;
+  --accent-subtle: rgba(90, 138, 252, 0.1);
+  --accent-glow: rgba(90, 138, 252, 0.15);
+
+  --selected-bg: #5a8afc;
+  --selected-bg-hover: #6a96fd;
+  --selected-text: #ffffff;
+
+  --danger: #f06058;
+  --danger-hover: #f47068;
+  --danger-subtle: rgba(240, 96, 88, 0.08);
+  --danger-border: rgba(240, 96, 88, 0.18);
+
+  --warning: #e89020;
+  --warning-subtle: rgba(232, 144, 32, 0.08);
+
+  --btn-bg: #252530;
+  --btn-bg-hover: #2e2e3a;
+  --btn-bg-active: #353542;
+  --btn-border: rgba(255, 255, 255, 0.06);
+  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+
+  --progress-gradient: linear-gradient(90deg, #5a8afc, #7ca0fd, #5a8afc);
+  --progress-shine: rgba(255, 255, 255, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+
+  --toggle-bg: #35354a;
+  --toggle-bg-active: #5a8afc;
+  --toggle-knob: #e8e8ec;
+  --toggle-icon-sun: #f0a500;
+  --toggle-icon-moon: #7c8db5;
+
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Base Reset ──────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -14,67 +166,199 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
-  color: #333;
-  background: #f5f5f5;
+  color: var(--text-primary);
+  background: var(--bg-app);
   user-select: none;
   -webkit-user-select: none;
+  transition: background 0.35s ease, color 0.35s ease;
 }
 
-/* ── Toolbar ──────────────────────────────────────────── */
+/* ── App Container ───────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ── Toolbar ─────────────────────────────────────────── */
 #toolbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  background: linear-gradient(to bottom, #fafafa, #ececec);
-  border-bottom: 1px solid #c8c8c8;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-toolbar);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
+  z-index: 10;
+  transition: background 0.35s ease, border-color 0.35s ease;
 }
 
 #toolbar button {
-  padding: 4px 14px;
+  padding: 6px 16px;
   font-size: 13px;
-  border: 1px solid #b0b0b0;
-  border-radius: 5px;
-  background: linear-gradient(to bottom, #ffffff, #e8e8e8);
-  color: #333;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-md);
+  background: var(--btn-bg);
+  color: var(--text-primary);
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: var(--btn-shadow);
+  transition: all 0.15s ease;
+  letter-spacing: -0.01em;
 }
 
-#toolbar button:hover {
-  background: linear-gradient(to bottom, #f0f0f0, #dcdcdc);
+#toolbar button:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  border-color: var(--border-input);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-0.5px);
 }
 
-#toolbar button:active {
-  background: linear-gradient(to bottom, #d8d8d8, #c8c8c8);
+#toolbar button:active:not(:disabled) {
+  background: var(--btn-bg-active);
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 #toolbar button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: default;
+}
+
+#btnScan {
+  background: var(--accent) !important;
+  color: var(--text-on-accent) !important;
+  border-color: transparent !important;
+}
+
+#btnScan:hover:not(:disabled) {
+  background: var(--accent-hover) !important;
+  box-shadow: 0 2px 10px var(--accent-glow) !important;
+}
+
+#btnScan:active:not(:disabled) {
+  background: var(--accent) !important;
 }
 
 #folderInput {
   flex: 1;
-  padding: 4px 8px;
+  padding: 6px 12px;
   font-size: 13px;
-  border: 1px solid #b0b0b0;
-  border-radius: 5px;
-  background: #fff;
+  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  color: var(--text-primary);
   outline: none;
-  font-family: inherit;
   min-width: 100px;
+  box-shadow: var(--shadow-inset);
+  transition: all 0.2s ease;
+}
+
+#folderInput::placeholder {
+  color: var(--text-tertiary);
+  font-family: 'DM Sans', sans-serif;
+  font-style: normal;
 }
 
 #folderInput:focus {
-  border-color: #5b9bd5;
-  box-shadow: 0 0 0 2px rgba(91, 155, 213, 0.25);
+  border-color: var(--border-input-focus);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+  background: var(--bg-input-focus);
 }
 
-/* ── Main layout ──────────────────────────────────────── */
+/* ── Theme Toggle ────────────────────────────────────── */
+.theme-toggle-wrapper {
+  display: flex;
+  align-items: center;
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border-primary);
+}
+
+.theme-toggle {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  border: none;
+  outline: none;
+  background: var(--toggle-bg);
+  border-radius: 14px;
+  transition: background 0.3s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--toggle-knob);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.theme-toggle.active {
+  background: var(--toggle-bg-active);
+}
+
+.theme-toggle.active::before {
+  transform: translateX(24px);
+}
+
+.theme-toggle-icons {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 52px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 7px;
+  pointer-events: none;
+  font-size: 12px;
+}
+
+.theme-toggle-icons .icon-sun {
+  opacity: 1;
+  transition: opacity 0.25s ease;
+  line-height: 1;
+  width: 14px;
+  text-align: center;
+}
+
+.theme-toggle-icons .icon-moon {
+  opacity: 1;
+  line-height: 1;
+  width: 14px;
+  text-align: center;
+}
+
+.theme-toggle.active + .theme-toggle-icons .icon-sun {
+  opacity: 0.4;
+}
+
+.theme-toggle.active + .theme-toggle-icons .icon-moon {
+  opacity: 1;
+  color: var(--text-secondary);
+}
+
+/* ── Main Layout ─────────────────────────────────────── */
 #main {
   display: flex;
   flex: 1;
@@ -82,136 +366,171 @@ html, body {
   min-height: 0;
 }
 
-/* ── Left panel ───────────────────────────────────────── */
+/* ── Left Panel ──────────────────────────────────────── */
 #leftPanel {
-  width: 250px;
-  min-width: 250px;
+  width: 260px;
+  min-width: 260px;
   display: flex;
   flex-direction: column;
-  background: #e8e8e8;
-  border-right: 1px solid #c0c0c0;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border-primary);
+  transition: background 0.35s ease, border-color 0.35s ease;
 }
 
 #leftPanel .panel-header {
-  padding: 8px 10px;
+  padding: 10px 14px;
   font-weight: 600;
-  font-size: 12px;
-  color: #555;
+  font-size: 11px;
+  color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  border-bottom: 1px solid #c8c8c8;
-  background: #ddd;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid var(--border-primary);
+  background: var(--bg-panel-header);
+  transition: all 0.35s ease;
 }
 
 #groupList {
   flex: 1;
   overflow-y: auto;
   list-style: none;
+  padding: 4px;
 }
 
 #groupList li {
-  padding: 8px 12px;
+  padding: 9px 12px;
   cursor: pointer;
-  border-bottom: 1px solid #d4d4d4;
+  border-radius: var(--radius-sm);
   font-size: 13px;
+  font-weight: 450;
+  margin-bottom: 1px;
+  color: var(--text-primary);
+  transition: all 0.12s ease;
 }
 
 #groupList li:hover {
-  background: #d0d0d0;
+  background: var(--bg-surface-hover);
 }
 
 #groupList li.selected {
-  background: #3478f6;
-  color: #fff;
+  background: var(--selected-bg);
+  color: var(--selected-text);
+  box-shadow: 0 1px 4px var(--accent-glow);
 }
 
 #groupList li.selected:hover {
-  background: #2a6ce0;
+  background: var(--selected-bg-hover);
 }
 
 #groupNav {
   display: flex;
-  gap: 4px;
-  padding: 8px 10px;
-  border-top: 1px solid #c8c8c8;
-  background: #ddd;
+  gap: 6px;
+  padding: 10px;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-panel-header);
+  transition: all 0.35s ease;
 }
 
 #groupNav button {
   flex: 1;
-  padding: 4px 10px;
+  padding: 6px 12px;
   font-size: 12px;
-  border: 1px solid #b0b0b0;
-  border-radius: 5px;
-  background: linear-gradient(to bottom, #fff, #e8e8e8);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-sm);
+  background: var(--btn-bg);
+  color: var(--text-primary);
   cursor: pointer;
+  box-shadow: var(--btn-shadow);
+  transition: all 0.15s ease;
 }
 
-#groupNav button:hover {
-  background: linear-gradient(to bottom, #f0f0f0, #dcdcdc);
+#groupNav button:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  border-color: var(--border-input);
 }
 
 #groupNav button:disabled {
-  opacity: 0.5;
+  opacity: 0.35;
   cursor: default;
 }
 
-/* ── Right panel ──────────────────────────────────────── */
+/* ── Right Panel ─────────────────────────────────────── */
 #rightPanel {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-surface);
+  transition: background 0.35s ease;
 }
 
 #imageArea {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 16px;
+  padding: 16px 20px;
 }
 
 .image-row {
   display: flex;
   align-items: flex-start;
-  gap: 14px;
-  padding: 12px 0;
+  gap: 16px;
+  padding: 16px 0;
+  animation: rowFadeIn 0.3s ease both;
+}
+
+@keyframes rowFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .image-row + .image-row {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border-secondary);
 }
 
 .image-row input[type="checkbox"] {
-  margin-top: 4px;
-  width: 16px;
-  height: 16px;
+  margin-top: 6px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
   cursor: pointer;
-  accent-color: #3478f6;
+  accent-color: var(--accent);
+  border-radius: 4px;
 }
 
 .thumb-container {
-  width: 250px;
-  height: 250px;
-  min-width: 250px;
+  width: 220px;
+  height: 220px;
+  min-width: 220px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fafafa;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+  background: var(--bg-thumb);
+  border: 1px solid var(--border-thumb);
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.thumb-container:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--border-input);
 }
 
 .thumb-container img {
-  max-width: 250px;
-  max-height: 250px;
+  max-width: 220px;
+  max-height: 220px;
   object-fit: contain;
+  transition: transform 0.25s ease;
+}
+
+.thumb-container:hover img {
+  transform: scale(1.02);
 }
 
 .thumb-placeholder {
-  color: #999;
+  color: var(--text-muted);
   font-size: 12px;
   font-style: italic;
 }
@@ -219,152 +538,234 @@ html, body {
 .file-info {
   flex: 1;
   min-width: 0;
+  padding-top: 2px;
 }
 
 .file-name {
   font-weight: 600;
-  font-size: 14px;
-  margin-bottom: 3px;
+  font-size: 15px;
+  margin-bottom: 4px;
   word-break: break-all;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .file-path {
-  color: #888;
+  color: var(--text-tertiary);
   font-size: 12px;
-  margin-bottom: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
   word-break: break-all;
+  line-height: 1.5;
 }
 
 .file-meta {
   font-size: 12px;
-  color: #666;
-  margin-bottom: 8px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  line-height: 1.5;
 }
 
 .file-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
 }
 
 .file-actions button {
-  padding: 3px 12px;
+  padding: 5px 14px;
   font-size: 12px;
-  border: 1px solid #b0b0b0;
-  border-radius: 4px;
-  background: linear-gradient(to bottom, #fff, #eee);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-sm);
+  background: var(--btn-bg);
+  color: var(--text-primary);
   cursor: pointer;
+  box-shadow: var(--btn-shadow);
+  transition: all 0.15s ease;
 }
 
 .file-actions button:hover {
-  background: linear-gradient(to bottom, #f0f0f0, #ddd);
+  background: var(--btn-bg-hover);
+  border-color: var(--border-input);
+  transform: translateY(-0.5px);
+  box-shadow: var(--shadow-md);
 }
 
+.file-actions button:active {
+  transform: translateY(0);
+  background: var(--btn-bg-active);
+}
+
+/* ── Empty State ─────────────────────────────────────── */
 #emptyState {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #aaa;
+  color: var(--text-tertiary);
   font-size: 15px;
-  font-style: italic;
+  gap: 16px;
+  animation: emptyFadeIn 0.5s ease both;
 }
 
-/* ── Action bar ───────────────────────────────────────── */
+@keyframes emptyFadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.empty-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: var(--bg-empty-icon);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+
+.empty-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.empty-hint {
+  font-size: 13px;
+  color: var(--text-tertiary);
+  font-weight: 400;
+}
+
+/* ── Action Bar ──────────────────────────────────────── */
 #actionBar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-top: 1px solid #d0d0d0;
-  background: #f0f0f0;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-action-bar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   flex-shrink: 0;
+  transition: all 0.35s ease;
 }
 
 #actionBar button {
-  padding: 4px 12px;
+  padding: 6px 14px;
   font-size: 12px;
-  border: 1px solid #b0b0b0;
-  border-radius: 5px;
-  background: linear-gradient(to bottom, #fff, #e8e8e8);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  border: 1px solid var(--btn-border);
+  border-radius: var(--radius-sm);
+  background: var(--btn-bg);
+  color: var(--text-primary);
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: var(--btn-shadow);
+  transition: all 0.15s ease;
 }
 
 #actionBar button:hover {
-  background: linear-gradient(to bottom, #f0f0f0, #dcdcdc);
+  background: var(--btn-bg-hover);
+  border-color: var(--border-input);
+  transform: translateY(-0.5px);
+}
+
+#actionBar button:active {
+  transform: translateY(0);
+  background: var(--btn-bg-active);
 }
 
 #actionBar .separator {
   width: 1px;
-  height: 22px;
-  background: #c0c0c0;
+  height: 24px;
+  background: var(--border-primary);
   margin: 0 4px;
+  flex-shrink: 0;
 }
 
 #btnTrash {
-  color: #c05000;
+  color: var(--warning) !important;
+  background: var(--warning-subtle) !important;
+  border-color: transparent !important;
+}
+
+#btnTrash:hover {
+  background: var(--warning-subtle) !important;
+  border-color: var(--warning) !important;
 }
 
 #btnDelete {
-  background: linear-gradient(to bottom, #f8e0e0, #e8c0c0) !important;
-  border-color: #c09090 !important;
-  color: #a02020;
+  color: var(--danger) !important;
+  background: var(--danger-subtle) !important;
+  border-color: var(--danger-border) !important;
 }
 
 #btnDelete:hover {
-  background: linear-gradient(to bottom, #f0d0d0, #ddb0b0) !important;
+  background: var(--danger-subtle) !important;
+  border-color: var(--danger) !important;
+  box-shadow: 0 2px 8px rgba(229, 77, 66, 0.12) !important;
 }
 
-/* ── Status bar ───────────────────────────────────────── */
+/* ── Status Bar ──────────────────────────────────────── */
 #statusBar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 10px;
-  border-top: 1px solid #c8c8c8;
-  background: #ececec;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-status);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   flex-shrink: 0;
-  height: 28px;
+  height: 32px;
+  transition: all 0.35s ease;
 }
 
 #statusText {
   font-size: 12px;
-  color: #555;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  margin-right: 12px;
+  margin-right: 16px;
+  font-weight: 450;
 }
 
 #progressContainer {
-  width: 200px;
-  min-width: 200px;
-  height: 14px;
-  background: #d8d8d8;
-  border-radius: 7px;
+  width: 180px;
+  min-width: 180px;
+  height: 6px;
+  background: var(--bg-progress-track);
+  border-radius: 3px;
   overflow: hidden;
-  border: 1px solid #bbb;
+  transition: background 0.35s ease;
 }
 
 #progressBar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(to bottom, #5ba3f5, #3478f6);
-  border-radius: 6px;
-  transition: width 0.15s ease;
+  background: var(--progress-gradient);
+  background-size: 200% 100%;
+  border-radius: 3px;
+  transition: width 0.2s ease;
+  position: relative;
+  animation: progressShimmer 2s linear infinite;
 }
 
-/* ── App container ────────────────────────────────────── */
-#app {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
+@keyframes progressShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
-/* ── Scrollbar styling ────────────────────────────────── */
+/* ── Scrollbar Styling ───────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 7px;
 }
 
 ::-webkit-scrollbar-track {
@@ -372,12 +773,31 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c0c0c0;
+  background: var(--scrollbar-thumb);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a0a0a0;
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* ── Focus-visible for accessibility ─────────────────── */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ── Smooth all theme transitions ────────────────────── */
+#leftPanel, #rightPanel, #toolbar, #statusBar, #actionBar,
+#leftPanel .panel-header, #groupNav, #groupList li,
+.thumb-container, .file-name, .file-path, .file-meta,
+.file-actions button, #groupNav button, #actionBar button,
+#toolbar button, #folderInput, #statusText, #progressContainer,
+.theme-toggle-wrapper {
+  transition-property: background, border-color, color, box-shadow;
+  transition-duration: 0.35s;
+  transition-timing-function: ease;
 }
 </style>
 </head>
@@ -390,6 +810,15 @@ html, body {
     <input type="text" id="folderInput" placeholder="Select a folder to scan for duplicates...">
     <button id="btnScan">Scan</button>
     <button id="btnCancel" disabled>Cancel</button>
+    <div class="theme-toggle-wrapper">
+      <div style="position:relative;display:inline-flex;">
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" type="button"></button>
+        <div class="theme-toggle-icons">
+          <span class="icon-sun">&#9728;&#xFE0E;</span>
+          <span class="icon-moon">&#9790;&#xFE0E;</span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Main area -->
@@ -407,7 +836,11 @@ html, body {
     <!-- Right panel: image detail -->
     <div id="rightPanel">
       <div id="imageArea">
-        <div id="emptyState">Select a folder and scan to find duplicate images.</div>
+        <div id="emptyState">
+          <div class="empty-icon">&#128444;&#xFE0E;</div>
+          <div class="empty-text">Find Duplicate Images</div>
+          <div class="empty-hint">Choose a folder and scan to discover duplicates</div>
+        </div>
       </div>
       <div id="actionBar" style="display:none;">
         <button id="btnSelectAllExceptFirst">Select All Except First</button>
@@ -431,31 +864,65 @@ html, body {
 
 <script>
 (function() {
+  // ── Theme ───────────────────────────────────────────────
+  var themeToggle = document.getElementById('themeToggle');
+
+  function getPreferredTheme() {
+    var stored = localStorage.getItem('theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      themeToggle.classList.add('active');
+    } else {
+      themeToggle.classList.remove('active');
+    }
+  }
+
+  applyTheme(getPreferredTheme());
+
+  themeToggle.addEventListener('click', function() {
+    var current = document.documentElement.getAttribute('data-theme') || 'light';
+    var next = current === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', next);
+    applyTheme(next);
+  });
+
+  // Listen for OS theme changes
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(e) {
+    if (!localStorage.getItem('theme')) {
+      applyTheme(e.matches ? 'dark' : 'light');
+    }
+  });
+
   // ── State ──────────────────────────────────────────────
-  let groups = [];
-  let currentGroupIndex = -1;
-  let scanning = false;
-  let cancelled = false;
-  let thumbnailCache = {};
+  var groups = [];
+  var currentGroupIndex = -1;
+  var scanning = false;
+  var cancelled = false;
+  var thumbnailCache = {};
 
   // ── DOM refs ───────────────────────────────────────────
-  const btnChooseFolder = document.getElementById('btnChooseFolder');
-  const folderInput = document.getElementById('folderInput');
-  const btnScan = document.getElementById('btnScan');
-  const btnCancel = document.getElementById('btnCancel');
-  const groupListEl = document.getElementById('groupList');
-  const btnPrev = document.getElementById('btnPrev');
-  const btnNext = document.getElementById('btnNext');
-  const imageArea = document.getElementById('imageArea');
-  const actionBar = document.getElementById('actionBar');
-  const emptyState = document.getElementById('emptyState');
-  const btnSelectAllExceptFirst = document.getElementById('btnSelectAllExceptFirst');
-  const btnSelectAllExceptLargest = document.getElementById('btnSelectAllExceptLargest');
-  const btnDeselectAll = document.getElementById('btnDeselectAll');
-  const btnTrash = document.getElementById('btnTrash');
-  const btnDelete = document.getElementById('btnDelete');
-  const statusText = document.getElementById('statusText');
-  const progressBar = document.getElementById('progressBar');
+  var btnChooseFolder = document.getElementById('btnChooseFolder');
+  var folderInput = document.getElementById('folderInput');
+  var btnScan = document.getElementById('btnScan');
+  var btnCancel = document.getElementById('btnCancel');
+  var groupListEl = document.getElementById('groupList');
+  var btnPrev = document.getElementById('btnPrev');
+  var btnNext = document.getElementById('btnNext');
+  var imageArea = document.getElementById('imageArea');
+  var actionBar = document.getElementById('actionBar');
+  var emptyState = document.getElementById('emptyState');
+  var btnSelectAllExceptFirst = document.getElementById('btnSelectAllExceptFirst');
+  var btnSelectAllExceptLargest = document.getElementById('btnSelectAllExceptLargest');
+  var btnDeselectAll = document.getElementById('btnDeselectAll');
+  var btnTrash = document.getElementById('btnTrash');
+  var btnDelete = document.getElementById('btnDelete');
+  var statusText = document.getElementById('statusText');
+  var progressBar = document.getElementById('progressBar');
 
   // ── Tauri API shortcuts ────────────────────────────────
   function invoke(cmd, args) {
@@ -469,7 +936,7 @@ html, body {
   // ── Choose folder ──────────────────────────────────────
   btnChooseFolder.addEventListener('click', async function() {
     try {
-      const selected = await window.__TAURI__.dialog.open({
+      var selected = await window.__TAURI__.dialog.open({
         directory: true,
         title: 'Select folder to scan'
       });
@@ -483,7 +950,7 @@ html, body {
 
   // ── Scan ───────────────────────────────────────────────
   btnScan.addEventListener('click', async function() {
-    const folder = folderInput.value.trim();
+    var folder = folderInput.value.trim();
     if (!folder) {
       setStatus('Please select a folder first.');
       return;
@@ -502,7 +969,7 @@ html, body {
     setProgress(0);
 
     try {
-      const result = await invoke('scan_folder', { folder: folder });
+      var result = await invoke('scan_folder', { folder: folder });
       if (cancelled) {
         setStatus('Scan cancelled.');
       } else if (result && result.groups && result.groups.length > 0) {
@@ -534,13 +1001,12 @@ html, body {
   btnCancel.addEventListener('click', function() {
     cancelled = true;
     setStatus('Cancelling...');
-    // Attempt to invoke a cancel command on the backend
     invoke('cancel_scan').catch(function() {});
   });
 
   // ── Progress events ────────────────────────────────────
   listen('scan-progress', function(event) {
-    const payload = event.payload;
+    var payload = event.payload;
     if (payload.message) {
       setStatus(payload.message);
     }
@@ -552,8 +1018,8 @@ html, body {
   // ── Group list ─────────────────────────────────────────
   function renderGroupList() {
     groupListEl.innerHTML = '';
-    for (let i = 0; i < groups.length; i++) {
-      const li = document.createElement('li');
+    for (var i = 0; i < groups.length; i++) {
+      var li = document.createElement('li');
       li.textContent = 'Group ' + (i + 1) + ' (' + groups[i].files.length + ' files)';
       if (i === currentGroupIndex) {
         li.className = 'selected';
@@ -571,7 +1037,6 @@ html, body {
     currentGroupIndex = index;
     renderGroupList();
     renderImages();
-    // Scroll selected item into view
     var items = groupListEl.querySelectorAll('li');
     if (items[index]) {
       items[index].scrollIntoView({ block: 'nearest' });
@@ -597,14 +1062,30 @@ html, body {
 
     if (currentGroupIndex < 0 || currentGroupIndex >= groups.length) {
       actionBar.style.display = 'none';
-      var msg = document.createElement('div');
-      msg.id = 'emptyState';
+      var wrapper = document.createElement('div');
+      wrapper.id = 'emptyState';
+
+      var icon = document.createElement('div');
+      icon.className = 'empty-icon';
+      icon.innerHTML = '&#128444;&#xFE0E;';
+      wrapper.appendChild(icon);
+
+      var text = document.createElement('div');
+      text.className = 'empty-text';
+      var hint = document.createElement('div');
+      hint.className = 'empty-hint';
+
       if (groups.length === 0) {
-        msg.textContent = 'Select a folder and scan to find duplicate images.';
+        text.textContent = 'Find Duplicate Images';
+        hint.textContent = 'Choose a folder and scan to discover duplicates';
       } else {
-        msg.textContent = 'Select a group from the list.';
+        text.textContent = 'Select a Group';
+        hint.textContent = 'Pick a duplicate group from the list to review';
       }
-      imageArea.appendChild(msg);
+
+      wrapper.appendChild(text);
+      wrapper.appendChild(hint);
+      imageArea.appendChild(wrapper);
       return;
     }
 
@@ -616,6 +1097,7 @@ html, body {
       var row = document.createElement('div');
       row.className = 'image-row';
       row.dataset.index = i;
+      row.style.animationDelay = (i * 0.04) + 's';
 
       // Checkbox
       var cb = document.createElement('input');
@@ -628,11 +1110,10 @@ html, body {
       thumbContainer.className = 'thumb-container';
       var placeholder = document.createElement('span');
       placeholder.className = 'thumb-placeholder';
-      placeholder.textContent = '[loading...]';
+      placeholder.textContent = 'Loading...';
       thumbContainer.appendChild(placeholder);
       row.appendChild(thumbContainer);
 
-      // Load thumbnail asynchronously
       loadThumbnail(file.path, thumbContainer);
 
       // File info
@@ -654,7 +1135,7 @@ html, body {
       var dims = file.dimensions || 'Unknown';
       var size = file.size || 'Unknown';
       var modified = file.modified || 'Unknown';
-      metaEl.textContent = dims + ' | ' + size + ' | Modified: ' + modified;
+      metaEl.textContent = dims + '  \u00B7  ' + size + '  \u00B7  ' + modified;
       info.appendChild(metaEl);
 
       var actions = document.createElement('div');
@@ -701,7 +1182,7 @@ html, body {
       container.innerHTML = '';
       var span = document.createElement('span');
       span.className = 'thumb-placeholder';
-      span.textContent = '[no preview]';
+      span.textContent = 'No preview';
       container.appendChild(span);
     }
   }
@@ -770,13 +1251,11 @@ html, body {
       pathSet[deletedPaths[i]] = true;
     }
 
-    // Remove from current group
     if (currentGroupIndex >= 0 && currentGroupIndex < groups.length) {
       groups[currentGroupIndex].files = groups[currentGroupIndex].files.filter(function(f) {
         return !pathSet[f.path];
       });
 
-      // If group has fewer than 2 files, remove the group
       if (groups[currentGroupIndex].files.length < 2) {
         groups.splice(currentGroupIndex, 1);
         if (groups.length === 0) {
@@ -787,7 +1266,6 @@ html, body {
       }
     }
 
-    // Remove from thumbnail cache
     for (var i = 0; i < deletedPaths.length; i++) {
       delete thumbnailCache[deletedPaths[i]];
     }

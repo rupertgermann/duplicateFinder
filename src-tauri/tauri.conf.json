@@ -19,6 +19,9 @@
     "withGlobalTauri": true,
     "windows": [
       {
+        "titleBarStyle": "Transparent",
+        "backgroundColor": "#15151f",
+
         "title": "Duplicate Image Finder",
         "width": 1100,
         "height": 720,
