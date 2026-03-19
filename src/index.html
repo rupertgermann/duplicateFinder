@@ -284,10 +284,20 @@ html, body {
   border-left: 1px solid var(--border-primary);
 }
 
-.theme-toggle {
+.theme-toggle-control {
   position: relative;
+  display: inline-flex;
+  align-items: center;
   width: 52px;
   height: 28px;
+  flex-shrink: 0;
+}
+
+.theme-toggle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   cursor: pointer;
   -webkit-appearance: none;
   appearance: none;
@@ -324,8 +334,8 @@ html, body {
   position: absolute;
   top: 0;
   left: 0;
-  width: 52px;
-  height: 28px;
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -811,7 +821,7 @@ input:focus-visible {
     <button id="btnScan" type="button">Scan</button>
     <button id="btnCancel" type="button" disabled>Cancel</button>
     <div class="theme-toggle-wrapper">
-      <div style="position:relative;display:inline-flex;">
+      <div class="theme-toggle-control">
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" type="button"></button>
         <div class="theme-toggle-icons">
           <span class="icon-sun">&#9728;&#xFE0E;</span>
