@@ -6,154 +6,165 @@
 <title>DuplicateImageFinder</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Comfortaa:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-/* ── Theme Variables ─────────────────────────────────── */
+/* ── Solarpunk Theme Variables ───────────────────────── */
 :root {
-  /* Light mode (default) */
-  --bg-app: #f8f7f4;
-  --bg-toolbar: rgba(255, 255, 255, 0.72);
-  --bg-toolbar-solid: #ffffff;
-  --bg-panel: #f0efec;
-  --bg-panel-header: #e8e7e3;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #f5f4f1;
-  --bg-surface-active: #eeedea;
-  --bg-input: #ffffff;
-  --bg-input-focus: #ffffff;
-  --bg-badge: rgba(0, 0, 0, 0.04);
-  --bg-thumb: #f5f4f1;
-  --bg-progress-track: #e8e7e3;
-  --bg-action-bar: rgba(255, 255, 255, 0.8);
-  --bg-status: rgba(255, 255, 255, 0.6);
-  --bg-empty-icon: rgba(0, 0, 0, 0.03);
+  /* Light mode — golden sun & lush greenery */
+  --bg-app: #f4f1e8;
+  --bg-toolbar: rgba(244, 237, 218, 0.82);
+  --bg-toolbar-solid: #f0e9d4;
+  --bg-panel: #eae4d0;
+  --bg-panel-header: #ddd6be;
+  --bg-surface: #faf7f0;
+  --bg-surface-hover: #f0ebda;
+  --bg-surface-active: #e6e0cc;
+  --bg-input: #fdfcf7;
+  --bg-input-focus: #fffef9;
+  --bg-badge: rgba(58, 107, 53, 0.06);
+  --bg-thumb: #f2ede0;
+  --bg-progress-track: #ddd6be;
+  --bg-action-bar: rgba(244, 237, 218, 0.85);
+  --bg-status: rgba(240, 233, 212, 0.7);
+  --bg-empty-icon: rgba(58, 107, 53, 0.06);
 
-  --border-primary: rgba(0, 0, 0, 0.08);
-  --border-secondary: rgba(0, 0, 0, 0.05);
-  --border-input: rgba(0, 0, 0, 0.12);
-  --border-input-focus: #4a7dfc;
-  --border-thumb: rgba(0, 0, 0, 0.06);
+  --border-primary: rgba(90, 75, 40, 0.12);
+  --border-secondary: rgba(90, 75, 40, 0.07);
+  --border-input: rgba(90, 75, 40, 0.18);
+  --border-input-focus: #4a8c3f;
+  --border-thumb: rgba(90, 75, 40, 0.1);
 
-  --text-primary: #1a1a1a;
-  --text-secondary: #6b6b6b;
-  --text-tertiary: #9a9a9a;
-  --text-muted: #b5b5b5;
+  --text-primary: #2c3a2a;
+  --text-secondary: #5e6e58;
+  --text-tertiary: #8a9484;
+  --text-muted: #b0b8aa;
   --text-on-accent: #ffffff;
 
-  --accent: #4a7dfc;
-  --accent-hover: #3a6dee;
-  --accent-subtle: rgba(74, 125, 252, 0.08);
-  --accent-glow: rgba(74, 125, 252, 0.2);
+  --accent: #4a8c3f;
+  --accent-hover: #3d7a34;
+  --accent-subtle: rgba(74, 140, 63, 0.1);
+  --accent-glow: rgba(74, 140, 63, 0.25);
 
-  --selected-bg: #4a7dfc;
-  --selected-bg-hover: #3a6dee;
+  --selected-bg: #4a8c3f;
+  --selected-bg-hover: #3d7a34;
   --selected-text: #ffffff;
 
-  --danger: #e54d42;
-  --danger-hover: #d43a2f;
-  --danger-subtle: rgba(229, 77, 66, 0.06);
-  --danger-border: rgba(229, 77, 66, 0.15);
+  --danger: #c45040;
+  --danger-hover: #b0402f;
+  --danger-subtle: rgba(196, 80, 64, 0.07);
+  --danger-border: rgba(196, 80, 64, 0.18);
 
-  --warning: #d4760a;
-  --warning-subtle: rgba(212, 118, 10, 0.06);
+  --warning: #c48a20;
+  --warning-subtle: rgba(196, 138, 32, 0.08);
 
-  --btn-bg: #ffffff;
-  --btn-bg-hover: #f5f4f1;
-  --btn-bg-active: #eeedea;
-  --btn-border: rgba(0, 0, 0, 0.1);
-  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --btn-bg: #faf7f0;
+  --btn-bg-hover: #f0ebda;
+  --btn-bg-active: #e6e0cc;
+  --btn-border: rgba(90, 75, 40, 0.14);
+  --btn-shadow: 0 1px 3px rgba(60, 50, 20, 0.06);
 
-  --progress-gradient: linear-gradient(90deg, #4a7dfc, #6c95fd, #4a7dfc);
-  --progress-shine: rgba(255, 255, 255, 0.3);
+  --progress-gradient: linear-gradient(90deg, #4a8c3f, #6aad5a, #d4a830, #6aad5a, #4a8c3f);
+  --progress-shine: rgba(255, 255, 240, 0.4);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
-  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px rgba(60, 50, 20, 0.05);
+  --shadow-md: 0 2px 8px rgba(60, 50, 20, 0.08);
+  --shadow-lg: 0 4px 16px rgba(60, 50, 20, 0.1);
+  --shadow-inset: inset 0 1px 2px rgba(60, 50, 20, 0.05);
 
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
 
-  --toggle-bg: #d4d3d0;
-  --toggle-bg-active: #4a7dfc;
-  --toggle-knob: #ffffff;
-  --toggle-icon-sun: #f0a500;
-  --toggle-icon-moon: #7c8db5;
+  --toggle-bg: #c4bb9e;
+  --toggle-bg-active: #4a8c3f;
+  --toggle-knob: #fdfcf7;
+  --toggle-icon-sun: #d4a020;
+  --toggle-icon-moon: #5e7a58;
 
-  --scrollbar-thumb: rgba(0, 0, 0, 0.15);
-  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.25);
+  --scrollbar-thumb: rgba(90, 75, 40, 0.18);
+  --scrollbar-thumb-hover: rgba(90, 75, 40, 0.3);
+
+  --vine-color: rgba(74, 140, 63, 0.08);
+  --gold-accent: #d4a830;
+  --gold-glow: rgba(212, 168, 48, 0.2);
+  --leaf-pattern: rgba(74, 140, 63, 0.04);
 }
 
 [data-theme="dark"] {
-  --bg-app: #141418;
-  --bg-toolbar: rgba(28, 28, 35, 0.78);
-  --bg-toolbar-solid: #1c1c23;
-  --bg-panel: #1a1a21;
-  --bg-panel-header: #222230;
-  --bg-surface: #1e1e26;
-  --bg-surface-hover: #252530;
-  --bg-surface-active: #2a2a36;
-  --bg-input: #1a1a22;
-  --bg-input-focus: #1e1e28;
-  --bg-badge: rgba(255, 255, 255, 0.05);
-  --bg-thumb: #1a1a22;
-  --bg-progress-track: #252530;
-  --bg-action-bar: rgba(28, 28, 35, 0.85);
-  --bg-status: rgba(20, 20, 24, 0.75);
-  --bg-empty-icon: rgba(255, 255, 255, 0.03);
+  /* Dark mode — midnight garden with bioluminescence */
+  --bg-app: #111a14;
+  --bg-toolbar: rgba(18, 30, 22, 0.85);
+  --bg-toolbar-solid: #152019;
+  --bg-panel: #141e17;
+  --bg-panel-header: #1a2a1e;
+  --bg-surface: #172118;
+  --bg-surface-hover: #1e2d20;
+  --bg-surface-active: #243626;
+  --bg-input: #121c15;
+  --bg-input-focus: #152018;
+  --bg-badge: rgba(106, 173, 90, 0.07);
+  --bg-thumb: #141e17;
+  --bg-progress-track: #1e2d20;
+  --bg-action-bar: rgba(18, 30, 22, 0.9);
+  --bg-status: rgba(17, 26, 20, 0.8);
+  --bg-empty-icon: rgba(106, 173, 90, 0.05);
 
-  --border-primary: rgba(255, 255, 255, 0.06);
-  --border-secondary: rgba(255, 255, 255, 0.04);
-  --border-input: rgba(255, 255, 255, 0.08);
-  --border-input-focus: #5a8afc;
-  --border-thumb: rgba(255, 255, 255, 0.06);
+  --border-primary: rgba(106, 173, 90, 0.1);
+  --border-secondary: rgba(106, 173, 90, 0.06);
+  --border-input: rgba(106, 173, 90, 0.14);
+  --border-input-focus: #6aad5a;
+  --border-thumb: rgba(106, 173, 90, 0.1);
 
-  --text-primary: #e8e8ec;
-  --text-secondary: #8e8e9a;
-  --text-tertiary: #5e5e6a;
-  --text-muted: #44444f;
+  --text-primary: #d4e0d0;
+  --text-secondary: #8a9e84;
+  --text-tertiary: #556e50;
+  --text-muted: #3a4e38;
   --text-on-accent: #ffffff;
 
-  --accent: #5a8afc;
-  --accent-hover: #6a96fd;
-  --accent-subtle: rgba(90, 138, 252, 0.1);
-  --accent-glow: rgba(90, 138, 252, 0.15);
+  --accent: #6aad5a;
+  --accent-hover: #7abf6a;
+  --accent-subtle: rgba(106, 173, 90, 0.12);
+  --accent-glow: rgba(106, 173, 90, 0.2);
 
-  --selected-bg: #5a8afc;
-  --selected-bg-hover: #6a96fd;
+  --selected-bg: #4a8c3f;
+  --selected-bg-hover: #5a9c4f;
   --selected-text: #ffffff;
 
-  --danger: #f06058;
-  --danger-hover: #f47068;
-  --danger-subtle: rgba(240, 96, 88, 0.08);
-  --danger-border: rgba(240, 96, 88, 0.18);
+  --danger: #d06050;
+  --danger-hover: #e07060;
+  --danger-subtle: rgba(208, 96, 80, 0.1);
+  --danger-border: rgba(208, 96, 80, 0.2);
 
-  --warning: #e89020;
-  --warning-subtle: rgba(232, 144, 32, 0.08);
+  --warning: #d4a830;
+  --warning-subtle: rgba(212, 168, 48, 0.1);
 
-  --btn-bg: #252530;
-  --btn-bg-hover: #2e2e3a;
-  --btn-bg-active: #353542;
-  --btn-border: rgba(255, 255, 255, 0.06);
-  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --btn-bg: #1a2a1e;
+  --btn-bg-hover: #1e3022;
+  --btn-bg-active: #243826;
+  --btn-border: rgba(106, 173, 90, 0.1);
+  --btn-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 
-  --progress-gradient: linear-gradient(90deg, #5a8afc, #7ca0fd, #5a8afc);
-  --progress-shine: rgba(255, 255, 255, 0.1);
+  --progress-gradient: linear-gradient(90deg, #4a8c3f, #6aad5a, #d4a830, #6aad5a, #4a8c3f);
+  --progress-shine: rgba(106, 173, 90, 0.15);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.3);
-  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-inset: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 
-  --toggle-bg: #35354a;
-  --toggle-bg-active: #5a8afc;
-  --toggle-knob: #e8e8ec;
-  --toggle-icon-sun: #f0a500;
-  --toggle-icon-moon: #7c8db5;
+  --toggle-bg: #243626;
+  --toggle-bg-active: #4a8c3f;
+  --toggle-knob: #d4e0d0;
+  --toggle-icon-sun: #d4a830;
+  --toggle-icon-moon: #6aad5a;
 
-  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
-  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.18);
+  --scrollbar-thumb: rgba(106, 173, 90, 0.15);
+  --scrollbar-thumb-hover: rgba(106, 173, 90, 0.25);
+
+  --vine-color: rgba(106, 173, 90, 0.06);
+  --gold-accent: #d4a830;
+  --gold-glow: rgba(212, 168, 48, 0.15);
+  --leaf-pattern: rgba(106, 173, 90, 0.03);
 }
 
 /* ── Base Reset ──────────────────────────────────────── */
@@ -166,7 +177,7 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: 'Quicksand', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   color: var(--text-primary);
   background: var(--bg-app);
@@ -180,6 +191,26 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  position: relative;
+}
+
+/* Subtle organic background pattern */
+#app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 400px at 10% 90%, var(--vine-color) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 350px at 90% 20%, var(--gold-glow) 0%, transparent 70%),
+    radial-gradient(ellipse 300px 300px at 50% 50%, var(--leaf-pattern) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+  transition: all 0.5s ease;
+}
+
+#app > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* ── Toolbar ─────────────────────────────────────────── */
@@ -200,8 +231,8 @@ html, body {
 #toolbar button {
   padding: 6px 16px;
   font-size: 13px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
   border: 1px solid var(--btn-border);
   border-radius: var(--radius-md);
   background: var(--btn-bg);
@@ -232,14 +263,23 @@ html, body {
 }
 
 #btnScan {
-  background: var(--accent) !important;
+  background: linear-gradient(135deg, var(--accent), #5a9c4f, var(--gold-accent)) !important;
+  background-size: 200% 200% !important;
   color: var(--text-on-accent) !important;
   border-color: transparent !important;
+  animation: scanBtnShimmer 4s ease infinite;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes scanBtnShimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 #btnScan:hover:not(:disabled) {
-  background: var(--accent-hover) !important;
-  box-shadow: 0 2px 10px var(--accent-glow) !important;
+  background: linear-gradient(135deg, var(--accent-hover), #4a8c3f, #c49a20) !important;
+  background-size: 200% 200% !important;
+  box-shadow: 0 3px 16px var(--accent-glow), 0 2px 8px var(--gold-glow) !important;
 }
 
 #btnScan:active:not(:disabled) {
@@ -250,7 +290,7 @@ html, body {
   flex: 1;
   padding: 6px 12px;
   font-size: 13px;
-  font-family: 'JetBrains Mono', 'SF Mono', monospace;
+  font-family: 'Space Mono', 'SF Mono', monospace;
   font-weight: 400;
   letter-spacing: -0.02em;
   border: 1px solid var(--border-input);
@@ -265,13 +305,13 @@ html, body {
 
 #folderInput::placeholder {
   color: var(--text-tertiary);
-  font-family: 'DM Sans', sans-serif;
+  font-family: 'Quicksand', sans-serif;
   font-style: normal;
 }
 
 #folderInput:focus {
   border-color: var(--border-input-focus);
-  box-shadow: 0 0 0 3px var(--accent-glow);
+  box-shadow: 0 0 0 3px var(--accent-glow), 0 0 12px var(--gold-glow);
   background: var(--bg-input-focus);
 }
 
@@ -281,7 +321,9 @@ html, body {
   align-items: center;
   margin-left: 4px;
   padding-left: 12px;
-  border-left: 1px solid var(--border-primary);
+  border-left: 1px solid var(--gold-accent);
+  border-left-style: dotted;
+  opacity: 0.9;
 }
 
 .theme-toggle-control {
@@ -389,11 +431,12 @@ html, body {
 
 #leftPanel .panel-header {
   padding: 10px 14px;
-  font-weight: 600;
+  font-family: 'Comfortaa', sans-serif;
+  font-weight: 700;
   font-size: 11px;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   border-bottom: 1px solid var(--border-primary);
   background: var(--bg-panel-header);
   transition: all 0.35s ease;
@@ -411,20 +454,23 @@ html, body {
   cursor: pointer;
   border-radius: var(--radius-sm);
   font-size: 13px;
-  font-weight: 450;
-  margin-bottom: 1px;
+  font-weight: 500;
+  margin-bottom: 2px;
   color: var(--text-primary);
-  transition: all 0.12s ease;
+  transition: all 0.2s ease;
+  border-left: 3px solid transparent;
 }
 
 #groupList li:hover {
   background: var(--bg-surface-hover);
+  border-left-color: var(--gold-accent);
 }
 
 #groupList li.selected {
   background: var(--selected-bg);
   color: var(--selected-text);
-  box-shadow: 0 1px 4px var(--accent-glow);
+  box-shadow: 0 2px 8px var(--accent-glow);
+  border-left-color: var(--gold-accent);
 }
 
 #groupList li.selected:hover {
@@ -444,8 +490,8 @@ html, body {
   flex: 1;
   padding: 6px 12px;
   font-size: 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
   border: 1px solid var(--btn-border);
   border-radius: var(--radius-sm);
   background: var(--btn-bg);
@@ -517,15 +563,16 @@ html, body {
   justify-content: center;
   background: var(--bg-thumb);
   border: 1px solid var(--border-thumb);
-  border-radius: var(--radius-lg);
+  border-radius: 24px 8px 24px 8px;
   overflow: hidden;
-  transition: all 0.2s ease;
+  transition: all 0.25s ease;
   box-shadow: var(--shadow-sm);
 }
 
 .thumb-container:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--border-input);
+  box-shadow: 0 4px 20px var(--accent-glow);
+  border-color: var(--accent);
+  border-radius: 8px 24px 8px 24px;
 }
 
 .thumb-container img {
@@ -552,18 +599,19 @@ html, body {
 }
 
 .file-name {
-  font-weight: 600;
+  font-family: 'Comfortaa', sans-serif;
+  font-weight: 700;
   font-size: 15px;
   margin-bottom: 4px;
   word-break: break-all;
   color: var(--text-primary);
-  letter-spacing: -0.01em;
+  letter-spacing: 0.01em;
 }
 
 .file-path {
   color: var(--text-tertiary);
   font-size: 12px;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'Space Mono', monospace;
   letter-spacing: -0.02em;
   margin-bottom: 6px;
   word-break: break-all;
@@ -585,8 +633,8 @@ html, body {
 .file-actions button {
   padding: 5px 14px;
   font-size: 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
   border: 1px solid var(--btn-border);
   border-radius: var(--radius-sm);
   background: var(--btn-bg);
@@ -627,21 +675,24 @@ html, body {
 }
 
 .empty-icon {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  background: var(--bg-empty-icon);
+  width: 80px;
+  height: 80px;
+  border-radius: 28px 12px 28px 12px;
+  background: linear-gradient(135deg, var(--accent-subtle), var(--gold-glow));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
+  font-size: 36px;
   margin-bottom: 4px;
+  box-shadow: 0 4px 24px var(--accent-glow);
 }
 
 .empty-text {
-  font-size: 15px;
-  font-weight: 500;
+  font-family: 'Comfortaa', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
   color: var(--text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .empty-hint {
@@ -667,8 +718,8 @@ html, body {
 #actionBar button {
   padding: 6px 14px;
   font-size: 12px;
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
+  font-family: 'Quicksand', sans-serif;
+  font-weight: 600;
   border: 1px solid var(--btn-border);
   border-radius: var(--radius-sm);
   background: var(--btn-bg);
@@ -693,20 +744,22 @@ html, body {
 #actionBar .separator {
   width: 1px;
   height: 24px;
-  background: var(--border-primary);
+  background: linear-gradient(to bottom, transparent, var(--gold-accent), transparent);
+  opacity: 0.3;
   margin: 0 4px;
   flex-shrink: 0;
 }
 
 #btnTrash {
-  color: var(--warning) !important;
-  background: var(--warning-subtle) !important;
+  color: var(--gold-accent) !important;
+  background: rgba(212, 168, 48, 0.08) !important;
   border-color: transparent !important;
 }
 
 #btnTrash:hover {
-  background: var(--warning-subtle) !important;
-  border-color: var(--warning) !important;
+  background: rgba(212, 168, 48, 0.12) !important;
+  border-color: var(--gold-accent) !important;
+  box-shadow: 0 2px 8px var(--gold-glow) !important;
 }
 
 #btnDelete {
@@ -738,13 +791,14 @@ html, body {
 
 #statusText {
   font-size: 12px;
+  font-family: 'Space Mono', monospace;
   color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
   margin-right: 16px;
-  font-weight: 450;
+  font-weight: 400;
 }
 
 #progressContainer {
@@ -761,11 +815,11 @@ html, body {
   height: 100%;
   width: 0%;
   background: var(--progress-gradient);
-  background-size: 200% 100%;
+  background-size: 400% 100%;
   border-radius: 3px;
   transition: width 0.2s ease;
   position: relative;
-  animation: progressShimmer 2s linear infinite;
+  animation: progressShimmer 3s ease infinite;
 }
 
 @keyframes progressShimmer {
@@ -809,6 +863,41 @@ input:focus-visible {
   transition-duration: 0.35s;
   transition-timing-function: ease;
 }
+
+/* ── Solarpunk decorative vine accents ───────────────── */
+#leftPanel::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--accent) 20%,
+    var(--gold-accent) 50%,
+    var(--accent) 80%,
+    transparent
+  );
+  opacity: 0.3;
+  pointer-events: none;
+}
+
+#leftPanel {
+  position: relative;
+}
+
+/* Organic image row hover with golden glow */
+.image-row:hover {
+  background: var(--leaf-pattern);
+  border-radius: var(--radius-md);
+}
+
+/* Retro-futuristic checkbox styling */
+.image-row input[type="checkbox"] {
+  accent-color: var(--accent);
+  border-radius: 50%;
+}
 </style>
 </head>
 <body>
@@ -825,7 +914,7 @@ input:focus-visible {
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" type="button"></button>
         <div class="theme-toggle-icons">
           <span class="icon-sun">&#9728;&#xFE0E;</span>
-          <span class="icon-moon">&#9790;&#xFE0E;</span>
+          <span class="icon-moon">&#127763;</span>
         </div>
       </div>
     </div>
@@ -847,7 +936,7 @@ input:focus-visible {
     <div id="rightPanel">
       <div id="imageArea">
         <div id="emptyState">
-          <div class="empty-icon">&#128444;&#xFE0E;</div>
+          <div class="empty-icon">&#127793;</div>
           <div class="empty-text">Find Duplicate Images</div>
           <div class="empty-hint">Choose a folder and scan to discover duplicates</div>
         </div>
@@ -1213,7 +1302,7 @@ input:focus-visible {
 
       var icon = document.createElement('div');
       icon.className = 'empty-icon';
-      icon.innerHTML = '&#128444;&#xFE0E;';
+      icon.innerHTML = '&#127793;';
       wrapper.appendChild(icon);
 
       var text = document.createElement('div');
