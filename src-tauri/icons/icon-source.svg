@@ -1,0 +1,70 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="184" y1="128" x2="848" y2="896" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#183B66"/>
+      <stop offset="0.52" stop-color="#1F6AA5"/>
+      <stop offset="1" stop-color="#26B6A7"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="220" y1="168" x2="760" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.26"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="cardSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#DDF4FF"/>
+      <stop offset="1" stop-color="#9EDAFF"/>
+    </linearGradient>
+    <linearGradient id="cardHill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2DBD8E"/>
+      <stop offset="1" stop-color="#128365"/>
+    </linearGradient>
+    <filter id="shadow" x="132" y="124" width="760" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="24"/>
+      <feGaussianBlur stdDeviation="28"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0196 0 0 0 0 0.1294 0 0 0 0 0.2314 0 0 0 0.26 0"/>
+    </filter>
+    <filter id="cardShadow" x="148" y="156" width="708" height="604" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feOffset dy="20"/>
+      <feGaussianBlur stdDeviation="18"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0314 0 0 0 0 0.102 0 0 0 0 0.1882 0 0 0 0.22 0"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="152" y="128" width="720" height="720" rx="196" fill="url(#bg)"/>
+  </g>
+
+  <rect x="168" y="144" width="688" height="688" rx="180" fill="url(#shine)"/>
+
+  <g filter="url(#cardShadow)">
+    <g transform="rotate(-9 386 396)">
+      <rect x="198" y="238" width="376" height="316" rx="44" fill="white"/>
+      <rect x="228" y="270" width="316" height="212" rx="28" fill="url(#cardSky)"/>
+      <circle cx="482" cy="324" r="30" fill="#FFD56A"/>
+      <path d="M228 442C259 393 297 368 342 368C389 368 423 400 454 428C473 445 489 458 509 458C524 458 536 452 544 446V482H228V442Z" fill="url(#cardHill)"/>
+      <path d="M228 470C253 433 285 415 325 415C365 415 394 437 423 459C444 475 467 494 499 494C516 494 530 489 544 479V482H228V470Z" fill="#0A6A60" fill-opacity="0.2"/>
+      <rect x="228" y="500" width="198" height="20" rx="10" fill="#D8E4EF"/>
+      <rect x="228" y="530" width="146" height="16" rx="8" fill="#E5EDF5"/>
+    </g>
+  </g>
+
+  <g filter="url(#cardShadow)">
+    <g transform="rotate(9 628 500)">
+      <rect x="438" y="320" width="380" height="320" rx="46" fill="white"/>
+      <rect x="470" y="352" width="316" height="214" rx="28" fill="url(#cardSky)"/>
+      <circle cx="716" cy="406" r="30" fill="#FFD56A"/>
+      <path d="M470 530C499 479 541 450 588 450C636 450 672 482 705 511C727 530 744 542 765 542C772 542 779 541 786 538V566H470V530Z" fill="url(#cardHill)"/>
+      <path d="M470 552C498 514 530 498 573 498C617 498 648 521 680 545C706 564 733 584 773 584C777 584 782 584 786 583V566H470V552Z" fill="#0A6A60" fill-opacity="0.2"/>
+      <rect x="470" y="584" width="206" height="20" rx="10" fill="#D8E4EF"/>
+      <rect x="470" y="614" width="154" height="16" rx="8" fill="#E5EDF5"/>
+    </g>
+  </g>
+
+  <g transform="translate(642 636)">
+    <circle cx="0" cy="0" r="122" fill="#0D2B4D" fill-opacity="0.18"/>
+    <circle cx="-12" cy="-12" r="120" fill="#FFFFFF" fill-opacity="0.18"/>
+    <circle cx="-12" cy="-12" r="92" fill="#FFFFFF" fill-opacity="0.16" stroke="white" stroke-width="30"/>
+    <rect x="50" y="70" width="42" height="150" rx="21" transform="rotate(-45 50 70)" fill="white"/>
+    <circle cx="-12" cy="-12" r="28" fill="#FFFFFF"/>
+    <circle cx="-12" cy="-12" r="11" fill="#1F6AA5"/>
+  </g>
+</svg>
