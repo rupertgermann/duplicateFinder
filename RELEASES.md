@@ -1,3 +1,33 @@
+# Release Notes - Duplicate Image Finder v1.0.1
+
+## Overview
+
+Bug fix and UX improvement release featuring cooperative scan cancellation and a complete visual refresh with dark mode support.
+
+## What's New
+
+### New Features
+- **Cooperative scan cancellation** — The Cancel button now actually stops active scans. Cancellation is checked during file discovery, hashing, and metadata assembly phases, so scans stop as soon as in-flight work reaches a safe interruption point.
+- **Dark mode theme** — Toggle between light and dark themes with a new theme switcher in the toolbar. The app respects the system preference by default and remembers your choice.
+
+### UI Improvements
+- **Transparent titlebar** — macOS app now features a modern transparent titlebar with a dark background (`#15151f`)
+- **Complete visual refresh** — Updated color palette, improved typography with DM Sans and JetBrains Mono fonts, refined spacing and shadows
+- **Better accessibility** — Focus-visible indicators and smoother theme transitions throughout the interface
+
+### API Changes
+- Added new Tauri command: `cancel_scan` — call to request cooperative cancellation of an ongoing scan
+
+## Bug Fixes
+- Fixed: Cancel button previously only marked the scan as cancelled in the UI while the backend job continued running until completion
+
+## Known Limitations
+
+- Duplicate detection is based on exact MD5 hash matches, not visual similarity
+- Files that cannot be decoded show `?` for dimensions and `[no preview]` for thumbnails
+
+---
+
 # Release Notes - Duplicate Image Finder v1.0.0
 
 ## Overview
