@@ -55,10 +55,22 @@ npx tauri dev
 npx tauri build
 ```
 
-The build produces a macOS `.app` bundle at:
+This build produces the release executable at:
 
 ```
-src-tauri/target/release/bundle/macos/Duplicate Image Finder.app
+src-tauri/target/release/duplicate-finder
+```
+
+To build a macOS `.app` bundle, run:
+
+```bash
+npx tauri build --bundles app
+```
+
+The app bundle is then created at:
+
+```
+src-tauri/target/release/bundle/macos/DuplicateImageFinder.app
 ```
 
 ## Usage
