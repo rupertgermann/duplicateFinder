@@ -22,14 +22,8 @@
     }
   },
   "plugins": {
-    "dialog": {
-      "open": true
-    },
     "fs": {
-      "scope": {
-        "allow": ["**"],
-        "requireLiteralLeadingDot": false
-      }
+      "requireLiteralLeadingDot": false
     }
   }
 }
