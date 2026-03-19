@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-config-schema/schema.json",
+  "productName": "Duplicate Image Finder",
+  "version": "1.0.0",
+  "identifier": "com.duplicatefinder.desktop",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Duplicate Image Finder",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 900,
+        "minHeight": 550
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost blob: data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "plugins": {
+    "dialog": {
+      "open": true
+    },
+    "fs": {
+      "scope": {
+        "allow": ["**"],
+        "requireLiteralLeadingDot": false
+      }
+    }
+  }
+}

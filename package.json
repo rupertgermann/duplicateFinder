@@ -1,0 +1,16 @@
+{
+  "name": "duplicate-finder",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

@@ -6,3 +6,11 @@ __pycache__/
 dist/
 build/
 .DS_Store
+
+node_modules/
+target/
+src-tauri/target/
+*.log
+.env
+.env.*
+.venv/
