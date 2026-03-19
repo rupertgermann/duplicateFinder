@@ -41,6 +41,7 @@ The frontend keeps these main pieces of state in memory:
 
 - Opens the folder picker with the Tauri dialog API
 - Starts scans with `scan_folder`
+- Cancels scans with `cancel_scan`
 - Listens for `scan-progress`
 - Renders duplicate groups in the sidebar
 - Renders each file row with a checkbox, thumbnail, metadata, and per-file actions
@@ -70,7 +71,7 @@ The frontend keeps these main pieces of state in memory:
 | `ScanResult` | Wrapper returned from `scan_folder` |
 | `ActionResult` | Success count and per-file errors for trash/delete operations |
 | `ScanProgress` | Progress event payload with a user-facing message and fractional completion |
-| `AppState` | Shared application state containing the latest duplicate groups |
+| `AppState` | Shared application state containing the latest duplicate groups and scan-cancellation flag |
 
 ### Helper Functions
 
@@ -80,7 +81,8 @@ The frontend keeps these main pieces of state in memory:
 | `format_size()` | Formats byte counts for display |
 | `format_modified()` | Formats filesystem timestamps into `YYYY-MM-DD HH:MM` text |
 | `days_to_ymd()` | Supports timestamp formatting without adding a date/time crate |
-| `compute_md5()` | Streams file contents in `64 KB` chunks and computes the MD5 hash |
+| `is_scan_cancelled()` | Reads the shared cooperative cancellation flag |
+| `compute_md5()` | Streams file contents in `64 KB` chunks, checks for cancellation, and computes the MD5 hash |
 | `build_file_info()` | Reads metadata and image dimensions for the UI |
 
 ### Tauri Commands
@@ -88,6 +90,7 @@ The frontend keeps these main pieces of state in memory:
 | Command | Purpose | Used by current UI |
 | --- | --- | --- |
 | `scan_folder(folder)` | Walk the selected directory, hash image files in parallel, group exact duplicates, build `FileInfo` output, emit progress, and store results in app state | Yes |
+| `cancel_scan()` | Request cooperative cancellation of the active scan job | Yes |
 | `get_file_info(path)` | Return metadata for a single file | No |
 | `get_thumbnail(path)` | Generate a `250x250` PNG thumbnail and return it as a base64 data URL | Yes |
 | `trash_files(paths)` | Send selected files to the operating system trash | Yes |
@@ -108,6 +111,8 @@ The application detects exact duplicate files rather than visually similar image
 7. Build `FileInfo` records for the remaining files.
 8. Sort groups by descending group size, then by first file path.
 9. Sort files inside each group by path.
+
+Cancellation is cooperative: the backend checks a shared atomic flag during directory walking, while reading file bytes for hashing, between parallel hash tasks, and while assembling output metadata. That lets the current safe unit of work finish and then exits without publishing partial scan results.
 
 ## Progress Events
 
@@ -190,4 +195,5 @@ Important output paths:
 
 - Scan results are stored in shared Tauri state after `scan_folder()` completes.
 - The frontend caches thumbnails for the active scan result in memory only.
-- The `Cancel` button sets frontend state to cancelled and attempts to invoke `cancel_scan`, but the backend does not register a `cancel_scan` command. The current scan therefore continues running to completion even though the UI stops treating its result as active.
+- The `Cancel` button invokes `cancel_scan`, disables further cancel clicks, and ignores further progress events while the backend winds down.
+- Cancelled scans do not overwrite the shared backend group state with partial or stale results.

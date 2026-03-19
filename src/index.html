@@ -806,10 +806,10 @@ input:focus-visible {
 <div id="app">
   <!-- Toolbar -->
   <div id="toolbar">
-    <button id="btnChooseFolder">Choose Folder...</button>
+    <button id="btnChooseFolder" type="button">Choose Folder...</button>
     <input type="text" id="folderInput" placeholder="Select a folder to scan for duplicates...">
-    <button id="btnScan">Scan</button>
-    <button id="btnCancel" disabled>Cancel</button>
+    <button id="btnScan" type="button">Scan</button>
+    <button id="btnCancel" type="button" disabled>Cancel</button>
     <div class="theme-toggle-wrapper">
       <div style="position:relative;display:inline-flex;">
         <button class="theme-toggle" id="themeToggle" aria-label="Toggle dark mode" type="button"></button>
@@ -828,8 +828,8 @@ input:focus-visible {
       <div class="panel-header">Duplicate Groups</div>
       <ul id="groupList"></ul>
       <div id="groupNav">
-        <button id="btnPrev" disabled>&#9664; Prev</button>
-        <button id="btnNext" disabled>&#9654; Next</button>
+        <button id="btnPrev" type="button" disabled>&#9664; Prev</button>
+        <button id="btnNext" type="button" disabled>&#9654; Next</button>
       </div>
     </div>
 
@@ -843,12 +843,12 @@ input:focus-visible {
         </div>
       </div>
       <div id="actionBar" style="display:none;">
-        <button id="btnSelectAllExceptFirst">Select All Except First</button>
-        <button id="btnSelectAllExceptLargest">Select All Except Largest</button>
-        <button id="btnDeselectAll">Deselect All</button>
+        <button id="btnSelectAllExceptFirst" type="button">Select All Except First</button>
+        <button id="btnSelectAllExceptLargest" type="button">Select All Except Largest</button>
+        <button id="btnDeselectAll" type="button">Deselect All</button>
         <div class="separator"></div>
-        <button id="btnTrash">Move to Trash</button>
-        <button id="btnDelete">Delete Permanently</button>
+        <button id="btnTrash" type="button">Move to Trash</button>
+        <button id="btnDelete" type="button">Delete Permanently</button>
       </div>
     </div>
   </div>
@@ -903,6 +903,7 @@ input:focus-visible {
   var currentGroupIndex = -1;
   var scanning = false;
   var cancelled = false;
+  var destructiveActionPending = false;
   var thumbnailCache = {};
 
   // ── DOM refs ───────────────────────────────────────────
@@ -931,6 +932,132 @@ input:focus-visible {
 
   function listen(event, handler) {
     return window.__TAURI__.event.listen(event, handler);
+  }
+
+  function isPromiseLike(value) {
+    return !!value && typeof value.then === 'function';
+  }
+
+  async function requestConfirmation(message, options) {
+    var result;
+    var dialogApi = window.__TAURI__ && window.__TAURI__.dialog;
+
+    if (dialogApi && typeof dialogApi.confirm === 'function') {
+      result = dialogApi.confirm(message, options || {});
+    } else if (typeof window.confirm === 'function') {
+      result = window.confirm(message);
+    } else {
+      return false;
+    }
+
+    if (isPromiseLike(result)) {
+      result = await result;
+    }
+
+    return !!result;
+  }
+
+  function setDestructiveActionPending(pending) {
+    destructiveActionPending = pending;
+    btnTrash.disabled = pending;
+    btnDelete.disabled = pending;
+    btnSelectAllExceptFirst.disabled = pending;
+    btnSelectAllExceptLargest.disabled = pending;
+    btnDeselectAll.disabled = pending;
+  }
+
+  function getFailedPaths(paths, errors) {
+    var failedPaths = [];
+    var errorList = Array.isArray(errors) ? errors : [];
+
+    for (var i = 0; i < paths.length; i++) {
+      var path = paths[i];
+      for (var j = 0; j < errorList.length; j++) {
+        if (typeof errorList[j] === 'string' && errorList[j].indexOf(path + ': ') === 0) {
+          failedPaths.push(path);
+          break;
+        }
+      }
+    }
+
+    return failedPaths;
+  }
+
+  function getSucceededPaths(paths, result) {
+    var failedPaths = getFailedPaths(paths, result && result.errors);
+    var failedPathSet = {};
+    var succeededPaths = [];
+
+    for (var i = 0; i < failedPaths.length; i++) {
+      failedPathSet[failedPaths[i]] = true;
+    }
+
+    for (var j = 0; j < paths.length; j++) {
+      if (!failedPathSet[paths[j]]) {
+        succeededPaths.push(paths[j]);
+      }
+    }
+
+    return succeededPaths;
+  }
+
+  function formatFileCount(count) {
+    return count + ' file' + (count !== 1 ? 's' : '');
+  }
+
+  function buildActionStatus(config, totalPaths, result) {
+    var errorCount = result && Array.isArray(result.errors) ? result.errors.length : 0;
+    var succeeded = result && typeof result.succeeded === 'number'
+      ? result.succeeded
+      : Math.max(0, totalPaths - errorCount);
+
+    if (errorCount === 0) {
+      return config.successMessage(succeeded);
+    }
+
+    if (succeeded === 0) {
+      return 'Unable to ' + config.actionLabel + ' ' + formatFileCount(totalPaths) + '. ' + result.errors[0];
+    }
+
+    return config.partialMessage(succeeded, totalPaths, errorCount);
+  }
+
+  async function handleDestructiveAction(event, config) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (destructiveActionPending) {
+      return;
+    }
+
+    var paths = getSelectedPaths();
+    if (paths.length === 0) {
+      setStatus('No files selected.');
+      return;
+    }
+
+    setDestructiveActionPending(true);
+
+    try {
+      var confirmed = await requestConfirmation(config.confirmMessage(paths.length), config.confirmOptions);
+      if (!confirmed) {
+        setStatus(config.cancelMessage || 'Action cancelled.');
+        return;
+      }
+
+      var result = await invoke(config.command, { paths: paths });
+      var succeededPaths = getSucceededPaths(paths, result);
+
+      if (succeededPaths.length > 0) {
+        removeDeletedFiles(succeededPaths);
+      }
+
+      setStatus(buildActionStatus(config, paths.length, result || {}));
+    } catch (e) {
+      setStatus('Error ' + config.errorLabel + ': ' + (e.message || e));
+    } finally {
+      setDestructiveActionPending(false);
+    }
   }
 
   // ── Choose folder ──────────────────────────────────────
@@ -999,13 +1126,22 @@ input:focus-visible {
 
   // ── Cancel ─────────────────────────────────────────────
   btnCancel.addEventListener('click', function() {
+    if (!scanning || cancelled) {
+      return;
+    }
+
     cancelled = true;
+    btnCancel.disabled = true;
     setStatus('Cancelling...');
     invoke('cancel_scan').catch(function() {});
   });
 
   // ── Progress events ────────────────────────────────────
   listen('scan-progress', function(event) {
+    if (cancelled) {
+      return;
+    }
+
     var payload = event.payload;
     if (payload.message) {
       setStatus(payload.message);
@@ -1142,6 +1278,7 @@ input:focus-visible {
       actions.className = 'file-actions';
 
       var btnOpen = document.createElement('button');
+      btnOpen.type = 'button';
       btnOpen.textContent = 'Open';
       btnOpen.addEventListener('click', (function(p) {
         return function() {
@@ -1153,6 +1290,7 @@ input:focus-visible {
       actions.appendChild(btnOpen);
 
       var btnReveal = document.createElement('button');
+      btnReveal.type = 'button';
       btnReveal.textContent = 'Show in Folder';
       btnReveal.addEventListener('click', (function(p) {
         return function() {
@@ -1274,40 +1412,46 @@ input:focus-visible {
     renderImages();
   }
 
-  btnTrash.addEventListener('click', async function() {
-    var paths = getSelectedPaths();
-    if (paths.length === 0) {
-      setStatus('No files selected.');
-      return;
-    }
-    if (!confirm('Move ' + paths.length + ' file' + (paths.length !== 1 ? 's' : '') + ' to Trash?')) {
-      return;
-    }
-    try {
-      await invoke('trash_files', { paths: paths });
-      setStatus('Moved ' + paths.length + ' file' + (paths.length !== 1 ? 's' : '') + ' to Trash.');
-      removeDeletedFiles(paths);
-    } catch (e) {
-      setStatus('Error moving to trash: ' + (e.message || e));
-    }
+  btnTrash.addEventListener('click', function(event) {
+    handleDestructiveAction(event, {
+      command: 'trash_files',
+      actionLabel: 'move to Trash',
+      errorLabel: 'moving files to Trash',
+      confirmOptions: {
+        title: 'Move to Trash'
+      },
+      confirmMessage: function(count) {
+        return 'Move ' + formatFileCount(count) + ' to Trash?';
+      },
+      cancelMessage: 'Move to Trash cancelled.',
+      successMessage: function(count) {
+        return 'Moved ' + formatFileCount(count) + ' to Trash.';
+      },
+      partialMessage: function(succeeded, total, failed) {
+        return 'Moved ' + formatFileCount(succeeded) + ' to Trash. ' + failed + ' of ' + total + ' failed.';
+      }
+    });
   });
 
-  btnDelete.addEventListener('click', async function() {
-    var paths = getSelectedPaths();
-    if (paths.length === 0) {
-      setStatus('No files selected.');
-      return;
-    }
-    if (!confirm('PERMANENTLY DELETE ' + paths.length + ' file' + (paths.length !== 1 ? 's' : '') + '?\n\nThis action CANNOT be undone. The files will be permanently removed from disk.')) {
-      return;
-    }
-    try {
-      await invoke('delete_files', { paths: paths });
-      setStatus('Permanently deleted ' + paths.length + ' file' + (paths.length !== 1 ? 's' : '') + '.');
-      removeDeletedFiles(paths);
-    } catch (e) {
-      setStatus('Error deleting files: ' + (e.message || e));
-    }
+  btnDelete.addEventListener('click', function(event) {
+    handleDestructiveAction(event, {
+      command: 'delete_files',
+      actionLabel: 'permanently delete',
+      errorLabel: 'deleting files',
+      confirmOptions: {
+        title: 'Delete Permanently'
+      },
+      confirmMessage: function(count) {
+        return 'PERMANENTLY DELETE ' + formatFileCount(count) + '?\n\nThis action CANNOT be undone. The files will be permanently removed from disk.';
+      },
+      cancelMessage: 'Permanent delete cancelled.',
+      successMessage: function(count) {
+        return 'Permanently deleted ' + formatFileCount(count) + '.';
+      },
+      partialMessage: function(succeeded, total, failed) {
+        return 'Permanently deleted ' + formatFileCount(succeeded) + '. ' + failed + ' of ' + total + ' failed.';
+      }
+    });
   });
 
   // ── Status & progress ─────────────────────────────────

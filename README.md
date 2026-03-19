@@ -24,6 +24,7 @@ A Tauri v2 desktop application for finding and managing exact duplicate image fi
 - Per-file actions for opening a file or revealing it in the system file manager
 - Group-level actions for moving selected files to Trash or deleting them permanently
 - Progress updates during scan, hash, grouping, and metadata phases
+- Cooperative scan cancellation from the `Cancel` button
 - In-memory thumbnail caching for the active scan results
 - Native release binary output plus macOS `.app` bundle support
 
@@ -95,7 +96,7 @@ src-tauri/target/release/bundle/macos/DuplicateImageFinder.app
 - Duplicate groups are sorted by group size first, then by the first file path in the group.
 - Files inside each group are sorted by path.
 - The frontend resets its state immediately after successful trash/delete actions so resolved groups disappear without a rescan.
-- The toolbar includes a `Cancel` button. The current UI marks the scan as cancelling and ignores the eventual result, but there is no backend `cancel_scan` command, so the underlying scan job continues running until completion.
+- The toolbar `Cancel` button cooperatively stops active scans. Cancellation is checked during discovery, hashing, and metadata assembly, so a scan stops as soon as the in-flight work reaches a safe interruption point.
 
 ## Architecture
 
@@ -107,6 +108,7 @@ The active application is split into two main parts:
 The frontend calls these Tauri commands:
 
 - `scan_folder`
+- `cancel_scan`
 - `get_file_info`
 - `get_thumbnail`
 - `trash_files`

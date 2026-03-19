@@ -6,7 +6,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::Path;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 
@@ -53,6 +54,7 @@ pub struct ScanProgress {
 #[derive(Debug, Default)]
 pub struct AppState {
     pub groups: Vec<DuplicateGroup>,
+    pub cancel_requested: Arc<AtomicBool>,
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +64,7 @@ pub struct AppState {
 const IMAGE_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "webp", "heic", "heif", "avif", "ico",
 ];
+const SCAN_CANCELLED_MESSAGE: &str = "Scan cancelled.";
 
 fn is_image_file(path: &Path) -> bool {
     path.extension()
@@ -98,7 +101,10 @@ fn format_modified(metadata: &fs::Metadata) -> String {
 
             // Days since 1970-01-01
             let (year, month, day) = days_to_ymd(days);
-            format!("{:04}-{:02}-{:02} {:02}:{:02}", year, month, day, hours, minutes)
+            format!(
+                "{:04}-{:02}-{:02} {:02}:{:02}",
+                year, month, day, hours, minutes
+            )
         }
         Err(_) => "?".to_string(),
     }
@@ -119,12 +125,23 @@ fn days_to_ymd(mut days: i64) -> (i64, i64, i64) {
     (y, m as i64, d as i64)
 }
 
-fn compute_md5(path: &Path) -> Result<String, String> {
-    let mut file = fs::File::open(path).map_err(|e| format!("Cannot open {}: {}", path.display(), e))?;
+fn is_scan_cancelled(cancel_requested: &AtomicBool) -> bool {
+    cancel_requested.load(Ordering::Relaxed)
+}
+
+fn compute_md5(path: &Path, cancel_requested: &AtomicBool) -> Result<String, String> {
+    let mut file =
+        fs::File::open(path).map_err(|e| format!("Cannot open {}: {}", path.display(), e))?;
     let mut hasher = Md5::new();
     let mut buffer = [0u8; 65536]; // 64 KB chunks
     loop {
-        let bytes_read = file.read(&mut buffer).map_err(|e| format!("Read error {}: {}", path.display(), e))?;
+        if is_scan_cancelled(cancel_requested) {
+            return Err(SCAN_CANCELLED_MESSAGE.to_string());
+        }
+
+        let bytes_read = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Read error {}: {}", path.display(), e))?;
         if bytes_read == 0 {
             break;
         }
@@ -166,6 +183,13 @@ async fn scan_folder(
     app: AppHandle,
     state: tauri::State<'_, Mutex<AppState>>,
 ) -> Result<ScanResult, String> {
+    let cancel_requested = {
+        let mut app_state = state.lock().map_err(|e| format!("Lock error: {}", e))?;
+        app_state.groups.clear();
+        app_state.cancel_requested.store(false, Ordering::SeqCst);
+        Arc::clone(&app_state.cancel_requested)
+    };
+
     let result = tauri::async_runtime::spawn_blocking(move || {
         // Phase 1: collect image files
         let _ = app.emit(
@@ -176,14 +200,21 @@ async fn scan_folder(
             },
         );
 
-        let image_files: Vec<String> = WalkDir::new(&folder)
-            .follow_links(true)
-            .into_iter()
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| entry.file_type().is_file())
-            .filter(|entry| is_image_file(entry.path()))
-            .map(|entry| entry.path().to_string_lossy().to_string())
-            .collect();
+        let mut image_files = Vec::new();
+        for entry in WalkDir::new(&folder).follow_links(true).into_iter() {
+            if is_scan_cancelled(&cancel_requested) {
+                return Err::<ScanResult, String>(SCAN_CANCELLED_MESSAGE.to_string());
+            }
+
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(_) => continue,
+            };
+
+            if entry.file_type().is_file() && is_image_file(entry.path()) {
+                image_files.push(entry.path().to_string_lossy().to_string());
+            }
+        }
 
         let total = image_files.len();
         if total == 0 {
@@ -199,32 +230,52 @@ async fn scan_folder(
         );
 
         // Phase 2: compute MD5 hashes in parallel
-        let completed = std::sync::atomic::AtomicUsize::new(0);
+        let completed = AtomicUsize::new(0);
         let app_ref = &app;
         let completed_ref = &completed;
+        let cancel_ref = &cancel_requested;
 
         let hashes: Vec<(String, String)> = image_files
             .par_iter()
-            .filter_map(|file_path| {
-                let path = Path::new(file_path);
-                let hash = compute_md5(path).ok()?;
+            .try_fold(
+                Vec::new,
+                |mut acc, file_path| -> Result<Vec<(String, String)>, String> {
+                    if is_scan_cancelled(cancel_ref) {
+                        return Err(SCAN_CANCELLED_MESSAGE.to_string());
+                    }
 
-                let done = completed_ref.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
-                // Emit progress every 50 files to avoid flooding
-                if done % 50 == 0 || done == total {
-                    let fraction = 0.05 + 0.85 * (done as f64 / total as f64);
-                    let _ = app_ref.emit(
-                        "scan-progress",
-                        ScanProgress {
-                            message: format!("Hashing... {}/{}", done, total),
-                            fraction,
-                        },
-                    );
-                }
+                    let path = Path::new(file_path);
+                    let hash = match compute_md5(path, cancel_ref) {
+                        Ok(hash) => hash,
+                        Err(error) if error == SCAN_CANCELLED_MESSAGE => return Err(error),
+                        Err(_) => return Ok(acc),
+                    };
 
-                Some((file_path.clone(), hash))
-            })
-            .collect();
+                    let done = completed_ref.fetch_add(1, Ordering::Relaxed) + 1;
+                    // Emit progress every 50 files to avoid flooding
+                    if done % 50 == 0 || done == total {
+                        let fraction = 0.05 + 0.85 * (done as f64 / total as f64);
+                        let _ = app_ref.emit(
+                            "scan-progress",
+                            ScanProgress {
+                                message: format!("Hashing... {}/{}", done, total),
+                                fraction,
+                            },
+                        );
+                    }
+
+                    acc.push((file_path.clone(), hash));
+                    Ok(acc)
+                },
+            )
+            .try_reduce(Vec::new, |mut left, mut right| {
+                left.append(&mut right);
+                Ok(left)
+            })?;
+
+        if is_scan_cancelled(&cancel_requested) {
+            return Err::<ScanResult, String>(SCAN_CANCELLED_MESSAGE.to_string());
+        }
 
         // Phase 3: group by hash
         let _ = app.emit(
@@ -237,6 +288,9 @@ async fn scan_folder(
 
         let mut hash_map: HashMap<String, Vec<String>> = HashMap::new();
         for (path, hash) in hashes {
+            if is_scan_cancelled(&cancel_requested) {
+                return Err::<ScanResult, String>(SCAN_CANCELLED_MESSAGE.to_string());
+            }
             hash_map.entry(hash).or_default().push(path);
         }
 
@@ -248,13 +302,11 @@ async fn scan_folder(
 
         // Sort groups: larger groups first, then by first filename
         groups.sort_by(|a, b| {
-            b.len()
-                .cmp(&a.len())
-                .then_with(|| {
-                    let a_first = a.first().map(|s| s.as_str()).unwrap_or("");
-                    let b_first = b.first().map(|s| s.as_str()).unwrap_or("");
-                    a_first.cmp(b_first)
-                })
+            b.len().cmp(&a.len()).then_with(|| {
+                let a_first = a.first().map(|s| s.as_str()).unwrap_or("");
+                let b_first = b.first().map(|s| s.as_str()).unwrap_or("");
+                a_first.cmp(b_first)
+            })
         });
 
         // Build FileInfo for each file in each group
@@ -266,26 +318,32 @@ async fn scan_folder(
             },
         );
 
-        let duplicate_groups: Vec<DuplicateGroup> = groups
-            .into_iter()
-            .map(|paths| {
-                let mut files: Vec<FileInfo> = paths
-                    .iter()
-                    .filter_map(|p| build_file_info(Path::new(p)).ok())
-                    .collect();
-                // Sort files within a group by path
-                files.sort_by(|a, b| a.path.cmp(&b.path));
-                DuplicateGroup { files }
-            })
-            .collect();
+        let mut duplicate_groups = Vec::new();
+        for paths in groups {
+            if is_scan_cancelled(&cancel_requested) {
+                return Err::<ScanResult, String>(SCAN_CANCELLED_MESSAGE.to_string());
+            }
+
+            let mut files: Vec<FileInfo> = paths
+                .iter()
+                .filter_map(|p| build_file_info(Path::new(p)).ok())
+                .collect();
+            // Sort files within a group by path
+            files.sort_by(|a, b| a.path.cmp(&b.path));
+
+            if !files.is_empty() {
+                duplicate_groups.push(DuplicateGroup { files });
+            }
+        }
+
+        if is_scan_cancelled(&cancel_requested) {
+            return Err::<ScanResult, String>(SCAN_CANCELLED_MESSAGE.to_string());
+        }
 
         let _ = app.emit(
             "scan-progress",
             ScanProgress {
-                message: format!(
-                    "Done. Found {} duplicate groups.",
-                    duplicate_groups.len()
-                ),
+                message: format!("Done. Found {} duplicate groups.", duplicate_groups.len()),
                 fraction: 1.0,
             },
         );
@@ -304,6 +362,13 @@ async fn scan_folder(
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+fn cancel_scan(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
+    let app_state = state.lock().map_err(|e| format!("Lock error: {}", e))?;
+    app_state.cancel_requested.store(true, Ordering::SeqCst);
+    Ok(())
 }
 
 #[tauri::command]
@@ -423,6 +488,7 @@ pub fn run() {
         .manage(Mutex::new(AppState::default()))
         .invoke_handler(tauri::generate_handler![
             scan_folder,
+            cancel_scan,
             get_file_info,
             get_thumbnail,
             trash_files,
