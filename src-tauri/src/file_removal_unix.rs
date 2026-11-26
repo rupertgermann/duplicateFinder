@@ -10,6 +10,8 @@ use super::{unix_file_identity, FileIdentity, REMOVAL_STAGE_PREFIX, REMOVAL_STAG
 pub(super) struct StagedFile<'a> {
     pub(super) path: &'a Path,
     directory: &'a File,
+    #[cfg(target_os = "linux")]
+    original_path: &'a Path,
 }
 
 impl StagedFile<'_> {
@@ -24,7 +26,7 @@ impl StagedFile<'_> {
 
     #[cfg(target_os = "linux")]
     pub(super) fn trash(&self) -> Result<(), String> {
-        trash::delete(self.path).map_err(|error| error.to_string())
+        super::file_removal_linux::trash(self.directory, self.name(), self.original_path)
     }
 
     #[cfg(target_os = "macos")]
@@ -33,6 +35,7 @@ impl StagedFile<'_> {
             NSFileManager, NSSearchPathDirectory, NSSearchPathDomainMask, NSString, NSURL,
         };
 
+        // shortcut: the Trash URL bridge accepts UTF-8 paths, use native filesystem URLs to lift this guard.
         let text = self
             .path
             .to_str()
@@ -59,15 +62,8 @@ impl StagedFile<'_> {
                     self.name().to_str().expect("checked UTF-8 path"),
                 ))
                 .ok_or("Could not create a URL for the file.")?;
-            // Keep the recoverable entry until macOS trashes a link to the same inode.
-            unix::linkat(
-                self.directory,
-                self.name(),
-                &temp,
-                self.name(),
-                AtFlags::empty(),
-            )
-            .map_err(|error| format!("Cannot prepare the file for the macOS Trash: {error}"))?;
+            self.prepare_trash_entry(&temp)
+                .map_err(|error| format!("Cannot prepare the file for the macOS Trash: {error}"))?;
             if let Err(error) = manager.trashItemAtURL_resultingItemURL_error(&entry, None) {
                 let _ = unix::unlinkat(&temp, self.name(), AtFlags::empty());
                 return Err(error.to_string());
@@ -83,11 +79,66 @@ impl StagedFile<'_> {
         let _ = std::fs::remove_dir(temp_path);
         result
     }
+
+    #[cfg(target_os = "macos")]
+    fn prepare_trash_entry(&self, temp: &impl std::os::fd::AsFd) -> io::Result<()> {
+        use rustix::io::Errno;
+
+        let name = self.name();
+        match unix::linkat(self.directory, name, temp, name, AtFlags::empty()) {
+            Ok(()) => Ok(()),
+            Err(Errno::XDEV | Errno::NOTSUP | Errno::OPNOTSUPP | Errno::PERM) => {
+                self.copy_trash_entry(temp)
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn copy_trash_entry(&self, temp: &impl std::os::fd::AsFd) -> io::Result<()> {
+        let name = self.name();
+        let from = File::from(unix::openat(
+            self.directory,
+            name,
+            STAGED_FILE_FLAGS,
+            Mode::empty(),
+        )?);
+        let stamp = super::FileStamp::read(&from)?;
+        let to = File::from(unix::openat(
+            temp,
+            name,
+            OFlags::WRONLY | OFlags::CREATE | OFlags::EXCL | OFlags::CLOEXEC,
+            Mode::RUSR | Mode::WUSR,
+        )?);
+        let copied = (|| {
+            let state = unix::copyfile_state_alloc()?;
+            // The state is uniquely owned until copyfile_state_free, even on failure.
+            unsafe {
+                let result = unix::fcopyfile(&from, &to, state, unix::CopyfileFlags::ALL);
+                let freed = unix::copyfile_state_free(state);
+                result.and(freed)?;
+            }
+            if super::FileStamp::read(&from)? != stamp || to.metadata()?.len() != stamp.size {
+                return Err(io::Error::other(
+                    "File changed while preparing it for Trash.",
+                ));
+            }
+            to.sync_all()
+        })();
+        if copied.is_err() {
+            let _ = unix::unlinkat(temp, name, AtFlags::empty());
+        }
+        copied
+    }
 }
 
 const DIR_FLAGS: OFlags = OFlags::RDONLY
     .union(OFlags::DIRECTORY)
     .union(OFlags::NOFOLLOW)
+    .union(OFlags::CLOEXEC);
+const STAGED_FILE_FLAGS: OFlags = OFlags::RDONLY
+    .union(OFlags::NOFOLLOW)
+    .union(OFlags::NONBLOCK)
     .union(OFlags::CLOEXEC);
 
 pub(super) fn with_staged_file(
@@ -131,9 +182,8 @@ pub(super) fn with_staged_file(
             .map_err(|error| format!("Cannot secure the file for removal: {error}"))?;
 
         let staged_result = (|| {
-            let flags = OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC;
             let file = File::from(
-                unix::openat(&stage_dir, name, flags, Mode::empty())
+                unix::openat(&stage_dir, name, STAGED_FILE_FLAGS, Mode::empty())
                     .map_err(|error| error.to_string())?,
             );
             let stage_path = directory_path(&stage_dir).map_err(|error| error.to_string())?;
@@ -141,6 +191,8 @@ pub(super) fn with_staged_file(
                 &StagedFile {
                     path: &stage_path.join(name),
                     directory: &stage_dir,
+                    #[cfg(target_os = "linux")]
+                    original_path: path,
                 },
                 file,
             )
@@ -211,4 +263,35 @@ fn directory_path(dir: &File) -> io::Result<PathBuf> {
     use std::os::fd::AsRawFd;
 
     std::fs::read_link(format!("/proc/self/fd/{}", dir.as_raw_fd()))
+}
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn trash_copy_keeps_the_source_and_preserves_data_and_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let source = tempfile::tempdir().unwrap();
+        let handoff = tempfile::tempdir().unwrap();
+        let path = source.path().join("copy.png");
+        fs::write(&path, b"image bytes").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o640)).unwrap();
+        let directory = File::open(source.path()).unwrap();
+        let staged = StagedFile {
+            path: &path,
+            directory: &directory,
+        };
+
+        staged
+            .copy_trash_entry(&File::open(handoff.path()).unwrap())
+            .unwrap();
+
+        let copy = handoff.path().join("copy.png");
+        assert_eq!(fs::read(&path).unwrap(), b"image bytes");
+        assert_eq!(fs::read(&copy).unwrap(), b"image bytes");
+        assert_eq!(fs::metadata(copy).unwrap().mode() & 0o777, 0o640);
+    }
 }

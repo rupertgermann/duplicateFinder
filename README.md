@@ -79,7 +79,8 @@ With Cargo's default target directory, the release executable is at `src-tauri/t
 - The app moves each selected entry into a temporary folder on the same volume before validating and removing it. If a failed or interrupted removal leaves a file in a `.duplicate-finder-recovery-*` folder, move it back to the parent folder after checking for a name conflict.
 - The status bar reports removal failures. Successful removals update the affected group immediately. Groups with fewer than two files disappear from the list.
 - **Move to Trash** reports a per-file error for paths containing invalid UTF-8 on macOS and paths that need a verbatim prefix on Windows, including UNC network paths.
-- Moving files to Trash on macOS requires a volume that supports hard links. To recover a file from Trash, drag it back to its original folder.
+- To recover a file from Trash on macOS or Windows, move it back to its original folder manually. On Linux, the app records the original path in the home Trash, including for files from external volumes.
+- On Windows, removal requires a file system with persistent access controls.
 
 ## Architecture
 

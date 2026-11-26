@@ -3,18 +3,26 @@ use std::fs::{self, File};
 use std::io;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+use std::os::windows::io::{AsRawHandle, FromRawHandle};
 use std::path::Path;
 use std::ptr;
-use windows_sys::Win32::Foundation::LocalFree;
+use windows_sys::Wdk::Foundation::OBJECT_ATTRIBUTES;
+use windows_sys::Wdk::Storage::FileSystem::{
+    NtCreateFile, FILE_CREATE, FILE_DIRECTORY_FILE, FILE_SYNCHRONOUS_IO_NONALERT,
+};
+use windows_sys::Win32::Foundation::{
+    LocalFree, RtlNtStatusToDosError, OBJ_CASE_INSENSITIVE, OBJ_DONT_REPARSE, UNICODE_STRING,
+};
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
 };
-use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateDirectoryW, MoveFileExW, FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS,
-    FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE,
-    FILE_TRAVERSE,
+    GetVolumeInformationByHandleW, MoveFileExW, FILE_ATTRIBUTE_NORMAL,
+    FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+    FILE_READ_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_TRAVERSE, SYNCHRONIZE,
 };
+use windows_sys::Win32::System::SystemServices::FILE_PERSISTENT_ACLS;
+use windows_sys::Win32::System::IO::IO_STATUS_BLOCK;
 
 fn lock_directory(path: &Path) -> io::Result<File> {
     let file = File::options()
@@ -29,12 +37,48 @@ fn lock_directory(path: &Path) -> io::Result<File> {
     Ok(file)
 }
 
-fn create_private_directory(path: &Path) -> io::Result<()> {
-    // Protect the stage from inherited permissions in shared directories.
+fn require_persistent_acls(parent: &File) -> io::Result<()> {
+    let mut flags = 0;
+    // Only the flags output is requested for this live directory handle.
+    if unsafe {
+        GetVolumeInformationByHandleW(
+            parent.as_raw_handle(),
+            ptr::null_mut(),
+            0,
+            ptr::null_mut(),
+            ptr::null_mut(),
+            &mut flags,
+            ptr::null_mut(),
+            0,
+        )
+    } == 0
+    {
+        return Err(io::Error::last_os_error());
+    }
+    if flags & FILE_PERSISTENT_ACLS == 0 {
+        return Err(io::Error::other(
+            "This volume does not enforce the permissions required for safe removal.",
+        ));
+    }
+    Ok(())
+}
+
+fn create_private_directory(parent: &File, candidate: &Path) -> io::Result<File> {
+    let mut name: Vec<_> = candidate
+        .file_name()
+        .expect("generated stage name")
+        .encode_wide()
+        .collect();
+    let length = u16::try_from(std::mem::size_of_val(name.as_slice()))
+        .map_err(|_| io::Error::other("The recovery folder name is too long."))?;
+    let name = UNICODE_STRING {
+        Length: length,
+        MaximumLength: length,
+        Buffer: name.as_mut_ptr(),
+    };
     let sddl: Vec<_> = "D:P(A;;FA;;;OW)(A;;FA;;;SY)\0".encode_utf16().collect();
-    let path = wide_path(path);
     let mut descriptor = ptr::null_mut();
-    // The Win32 call allocates the security descriptor, which is freed below.
+    // Supply the protected ACL and acquire the directory handle in one operation.
     unsafe {
         if ConvertStringSecurityDescriptorToSecurityDescriptorW(
             sddl.as_ptr(),
@@ -45,18 +89,35 @@ fn create_private_directory(path: &Path) -> io::Result<()> {
         {
             return Err(io::Error::last_os_error());
         }
-        let attributes = SECURITY_ATTRIBUTES {
-            nLength: std::mem::size_of::<SECURITY_ATTRIBUTES>() as u32,
-            lpSecurityDescriptor: descriptor,
-            bInheritHandle: 0,
+        let attributes = OBJECT_ATTRIBUTES {
+            Length: std::mem::size_of::<OBJECT_ATTRIBUTES>() as u32,
+            RootDirectory: parent.as_raw_handle(),
+            ObjectName: &name,
+            Attributes: OBJ_CASE_INSENSITIVE | OBJ_DONT_REPARSE,
+            SecurityDescriptor: descriptor.cast(),
+            SecurityQualityOfService: ptr::null(),
         };
-        let result = if CreateDirectoryW(path.as_ptr(), &attributes) != 0 {
-            Ok(())
-        } else {
-            Err(io::Error::last_os_error())
-        };
+        let mut stage_handle = ptr::null_mut();
+        let status = NtCreateFile(
+            &mut stage_handle,
+            FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+            &attributes,
+            &mut IO_STATUS_BLOCK::default(),
+            ptr::null(),
+            FILE_ATTRIBUTE_NORMAL,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            FILE_CREATE,
+            FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+            ptr::null(),
+            0,
+        );
         LocalFree(descriptor);
-        result
+        if status < 0 {
+            return Err(io::Error::from_raw_os_error(
+                RtlNtStatusToDosError(status) as i32
+            ));
+        }
+        Ok(File::from_raw_handle(stage_handle))
     }
 }
 
@@ -85,6 +146,7 @@ impl StagedFile<'_> {
     }
 
     pub(super) fn trash(&self) -> Result<(), String> {
+        // shortcut: the Windows Trash library strips verbatim prefixes, lift this guard when it preserves them.
         if matches!(
             self.path.components().next(),
             Some(std::path::Component::Prefix(prefix)) if prefix.kind().is_verbatim()
@@ -117,6 +179,7 @@ pub(super) fn with_staged_file(
     if windows_file_identity(parent).map_err(|error| error.to_string())? != expected_parent {
         return Err("The directory changed since the scan.".into());
     }
+    require_persistent_acls(parent).map_err(|error| error.to_string())?;
 
     // Windows canonicalization provides a verbatim path for the longer staging name.
     let parent_path = fs::canonicalize(parent_path).map_err(|error| error.to_string())?;
@@ -125,14 +188,15 @@ pub(super) fn with_staged_file(
         .prefix(REMOVAL_STAGE_PREFIX)
         .rand_bytes(REMOVAL_STAGE_RANDOM_LEN)
         .disable_cleanup(true)
-        .make_in(parent_path, create_private_directory)
+        .make_in(parent_path, |candidate| {
+            create_private_directory(parent, candidate)
+        })
         .map_err(|error| error.to_string())?;
-    let stage_path = stage.path();
-    let stage_guard = lock_directory(stage_path).map_err(|error| error.to_string())?;
+    let (stage_guard, stage_path) = stage.into_parts();
     let staged = stage_path.join(name);
     if let Err(error) = move_without_replacing(&original, &staged) {
         drop(stage_guard);
-        let _ = fs::remove_dir(stage_path);
+        let _ = fs::remove_dir(&stage_path);
         return Err(error.to_string());
     }
 
@@ -168,6 +232,6 @@ pub(super) fn with_staged_file(
         }
     }
     drop(stage_guard);
-    let _ = fs::remove_dir(stage_path);
+    let _ = fs::remove_dir(&stage_path);
     result
 }

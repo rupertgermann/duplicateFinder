@@ -15,6 +15,8 @@ use walkdir::WalkDir;
 #[cfg_attr(unix, path = "file_removal_unix.rs")]
 #[cfg_attr(windows, path = "file_removal_windows.rs")]
 mod file_removal;
+#[cfg(target_os = "linux")]
+mod file_removal_linux;
 
 // ---------------------------------------------------------------------------
 // Data types
