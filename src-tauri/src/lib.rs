@@ -18,11 +18,10 @@ use walkdir::WalkDir;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileInfo {
-    pub id: Option<String>,
+    pub id: String,
     pub path: String,
     pub name: String,
     pub size: String,
-    pub size_bytes: u64,
     pub modified: String,
     pub dimensions: String,
 }
@@ -86,7 +85,7 @@ struct ScannedFile {
     group: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FileSnapshot {
     path: PathBuf,
     parent_identity: FileIdentity,
@@ -96,7 +95,7 @@ struct FileSnapshot {
 
 type FileIdentity = (u64, u128);
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct FileStamp {
     identity: FileIdentity,
     size: u64,
@@ -321,7 +320,7 @@ impl FileSnapshot {
     }
 }
 
-fn build_file_info(path: &Path, metadata: &Metadata, id: Option<String>) -> FileInfo {
+fn build_file_info(path: &Path, metadata: &Metadata, id: String) -> FileInfo {
     let dimensions = match image::image_dimensions(path) {
         Ok((w, h)) => format!("{}x{}", w, h),
         Err(_) => "?".to_string(),
@@ -335,7 +334,6 @@ fn build_file_info(path: &Path, metadata: &Metadata, id: Option<String>) -> File
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default(),
         size: format_size(metadata.len()),
-        size_bytes: metadata.len(),
         modified: format_modified(metadata),
         dimensions,
     }
@@ -346,11 +344,18 @@ enum ScanSkip {
     Metadata,
 }
 
-fn scan_file(path: PathBuf, cancel_requested: &AtomicBool) -> Result<FileSnapshot, ScanSkip> {
+fn scan_file(
+    path: PathBuf,
+    size: u64,
+    cancel_requested: &AtomicBool,
+) -> Result<FileSnapshot, ScanSkip> {
     let parent = path.parent().expect("scanned file has a parent");
     let parent_identity = directory_identity(parent).map_err(|_| ScanSkip::Metadata)?;
     let mut file = open_canonical_file(&path).map_err(|_| ScanSkip::Unreadable)?;
     let stamp = FileStamp::read(&file).map_err(|_| ScanSkip::Metadata)?;
+    if stamp.size != size {
+        return Err(ScanSkip::Metadata);
+    }
     let hash = compute_md5(&mut file, Some(cancel_requested)).map_err(|_| ScanSkip::Unreadable)?;
     if FileStamp::read(&file).map_err(|_| ScanSkip::Metadata)? != stamp {
         return Err(ScanSkip::Metadata);
@@ -423,17 +428,33 @@ fn scan_folder_files(
         }
     }
 
-    let total = paths.len();
+    let discovered = paths.len();
+    let mut by_size = HashMap::<_, Vec<_>>::new();
+    for path in paths {
+        check_cancelled(cancel_requested)?;
+        match fs::symlink_metadata(&path) {
+            Ok(metadata) if metadata.is_file() => {
+                by_size.entry(metadata.len()).or_default().push(path);
+            }
+            _ => skipped.unreadable_files += 1,
+        }
+    }
+    let candidates: Vec<_> = by_size
+        .into_iter()
+        .filter(|(_, files)| files.len() >= 2)
+        .flat_map(|(size, files)| files.into_iter().map(move |path| (path, size)))
+        .collect();
+    let total = candidates.len();
     report(
-        format!("Found {} image files. Computing hashes...", total),
+        format!("Found {discovered} image files. Hashing {total} candidates..."),
         0.05,
     );
     let completed = AtomicUsize::new(0);
-    let hashes = paths
+    let hashes = candidates
         .into_par_iter()
-        .map(|path| {
+        .map(|(path, size)| {
             check_cancelled(cancel_requested)?;
-            let result = scan_file(path, cancel_requested);
+            let result = scan_file(path, size, cancel_requested);
             let done = completed.fetch_add(1, Ordering::Relaxed) + 1;
             if done % 50 == 0 || done == total {
                 let fraction = 0.05 + 0.85 * (done as f64 / total as f64);
@@ -444,21 +465,33 @@ fn scan_folder_files(
         .collect::<Result<Vec<_>, String>>()?;
     check_cancelled(cancel_requested)?;
 
-    report("Grouping duplicates...".into(), 0.92);
+    report("Verifying matching files...".into(), 0.92);
     let mut by_hash = HashMap::<_, Vec<_>>::new();
     for result in hashes {
         match result {
-            Ok(snapshot) => by_hash.entry(snapshot.hash).or_default().push(snapshot),
+            Ok(snapshot) => by_hash
+                .entry((snapshot.stamp.size, snapshot.hash))
+                .or_default()
+                .push(snapshot),
             Err(ScanSkip::Unreadable) => skipped.unreadable_files += 1,
             Err(ScanSkip::Metadata) => skipped.metadata_files += 1,
         }
     }
 
+    let mut verified_groups = Vec::new();
+    for mut snapshots in by_hash.into_values().filter(|files| files.len() >= 2) {
+        snapshots.sort_by(|a, b| a.path.cmp(&b.path));
+        verified_groups.extend(partition_matching_bytes(
+            snapshots,
+            cancel_requested,
+            &mut skipped,
+        )?);
+    }
+
     report("Building file info...".into(), 0.95);
     let mut groups = Vec::new();
     let mut next_id = 0usize;
-    for mut snapshots in by_hash.into_values().filter(|files| files.len() >= 2) {
-        snapshots.sort_by(|a, b| a.path.cmp(&b.path));
+    for snapshots in verified_groups {
         let mut group = Vec::new();
         for snapshot in snapshots {
             check_cancelled(cancel_requested)?;
@@ -471,7 +504,7 @@ fn scan_folder_files(
             };
             let id = format!("{scan_number}:{next_id}");
             next_id += 1;
-            let info = build_file_info(&snapshot.path, &metadata, Some(id.clone()));
+            let info = build_file_info(&snapshot.path, &metadata, id.clone());
             if snapshot.open_checked().is_err() {
                 skipped.metadata_files += 1;
                 continue;
@@ -512,15 +545,89 @@ fn scan_folder_files(
     Ok((ScanResult { groups, skipped }, duplicates))
 }
 
-fn matching_bytes(target: &mut File, survivor: &mut File) -> io::Result<bool> {
+fn partition_matching_bytes(
+    snapshots: Vec<FileSnapshot>,
+    cancel_requested: &AtomicBool,
+    skipped: &mut Skipped,
+) -> Result<Vec<Vec<FileSnapshot>>, String> {
+    let mut partitions: Vec<Vec<FileSnapshot>> = Vec::new();
+    'members: for snapshot in snapshots {
+        check_cancelled(cancel_requested)?;
+        let Ok(mut file) = snapshot.open_checked() else {
+            skipped.metadata_files += 1;
+            continue;
+        };
+        for partition in &mut partitions {
+            while let Some(representative) = partition.last() {
+                check_cancelled(cancel_requested)?;
+                let Ok(mut other) = representative.open_checked() else {
+                    skipped.metadata_files += 1;
+                    partition.pop();
+                    continue;
+                };
+                let same_bytes = match matching_bytes(&mut file, &mut other, Some(cancel_requested))
+                {
+                    Ok(same_bytes) => same_bytes,
+                    Err(ByteComparisonError::Left) => {
+                        skipped.unreadable_files += 1;
+                        continue 'members;
+                    }
+                    Err(ByteComparisonError::Right) => {
+                        skipped.unreadable_files += 1;
+                        partition.pop();
+                        continue;
+                    }
+                    Err(ByteComparisonError::Cancelled) => {
+                        return Err(SCAN_CANCELLED_MESSAGE.into())
+                    }
+                };
+                if !FileStamp::read(&file).is_ok_and(|stamp| stamp == snapshot.stamp) {
+                    skipped.metadata_files += 1;
+                    continue 'members;
+                }
+                if !FileStamp::read(&other).is_ok_and(|stamp| stamp == representative.stamp) {
+                    skipped.metadata_files += 1;
+                    partition.pop();
+                    continue;
+                }
+                if same_bytes {
+                    partition.push(snapshot);
+                    continue 'members;
+                }
+                break;
+            }
+        }
+        partitions.push(vec![snapshot]);
+    }
+    partitions.retain(|files| files.len() >= 2);
+    Ok(partitions)
+}
+
+enum ByteComparisonError {
+    Left,
+    Right,
+    Cancelled,
+}
+
+fn matching_bytes(
+    left_file: &mut File,
+    right_file: &mut File,
+    cancel_requested: Option<&AtomicBool>,
+) -> Result<bool, ByteComparisonError> {
     use std::io::BufRead;
 
-    target.rewind()?;
-    let mut left = BufReader::new(target);
-    let mut right = BufReader::new(survivor);
+    left_file.rewind().map_err(|_| ByteComparisonError::Left)?;
+    right_file
+        .rewind()
+        .map_err(|_| ByteComparisonError::Right)?;
+    let mut left = BufReader::new(left_file);
+    let mut right = BufReader::new(right_file);
     loop {
-        let left_bytes = left.fill_buf()?;
-        let right_bytes = right.fill_buf()?;
+        if cancel_requested.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return Err(ByteComparisonError::Cancelled);
+        }
+        let left_bytes = left.fill_buf().map_err(|_| ByteComparisonError::Left)?;
+        let right_bytes = right.fill_buf().map_err(|_| ByteComparisonError::Right)?;
         let len = left_bytes.len().min(right_bytes.len());
         if len == 0 {
             return Ok(left_bytes.is_empty() && right_bytes.is_empty());
@@ -534,11 +641,21 @@ fn matching_bytes(target: &mut File, survivor: &mut File) -> io::Result<bool> {
 }
 
 impl ScanFiles {
-    fn path(&self, id: &str) -> Result<PathBuf, String> {
+    fn file(&self, id: &str) -> Result<&ScannedFile, String> {
         self.files
             .get(id)
-            .map(|file| file.snapshot.path.clone())
             .ok_or_else(|| "The file is no longer in the active scan.".into())
+    }
+
+    fn path(&self, id: &str) -> Result<PathBuf, String> {
+        Ok(self.file(id)?.snapshot.path.clone())
+    }
+
+    fn group_snapshots(&self, id: &str) -> Result<Vec<FileSnapshot>, String> {
+        Ok(self.groups[self.file(id)?.group]
+            .iter()
+            .map(|id| self.files[id].snapshot.clone())
+            .collect())
     }
 
     fn remove_files(
@@ -599,7 +716,7 @@ impl ScanFiles {
                         !survivor.same_entry(snapshot)
                             && survivor.stamp.size == snapshot.stamp.size
                             && survivor.open_checked().is_ok_and(|mut other| {
-                                matching_bytes(&mut file, &mut other).unwrap_or(false)
+                                matching_bytes(&mut file, &mut other, None).unwrap_or(false)
                                     && survivor.open_checked().is_ok()
                             })
                     })
@@ -679,22 +796,44 @@ fn cancel_scan(state: tauri::State<'_, Mutex<AppState>>) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-fn get_file_info(path: String) -> Result<FileInfo, String> {
-    let path = Path::new(&path);
-    let metadata = fs::metadata(path).map_err(|e| format!("Metadata error: {}", e))?;
-    Ok(build_file_info(path, &metadata, None))
-}
-
 #[tauri::command(async)]
 fn get_thumbnail(id: String, state: tauri::State<'_, Mutex<AppState>>) -> Result<String, String> {
-    let path = state
+    let snapshots = state
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?
         .duplicates
-        .path(&id)?;
-    let img =
-        image::open(&path).map_err(|e| format!("Cannot open image {}: {}", path.display(), e))?;
+        .group_snapshots(&id)?;
+    encode_group_thumbnail(&snapshots)
+}
+
+fn encode_group_thumbnail(snapshots: &[FileSnapshot]) -> Result<String, String> {
+    let mut rejected_hints = HashSet::new();
+    let img = snapshots
+        .iter()
+        .find_map(|snapshot| {
+            let file = snapshot.open_checked().ok()?;
+            let mut reader = image::ImageReader::new(BufReader::new(file))
+                .with_guessed_format()
+                .ok()?;
+            let detected = reader.format();
+            let format = detected.or_else(|| image::ImageFormat::from_path(&snapshot.path).ok())?;
+            if rejected_hints.contains(&format) {
+                return None;
+            }
+            reader.set_format(format);
+            let decoded = reader.decode();
+            if matches!(&decoded, Err(image::ImageError::IoError(error)) if error.kind() != io::ErrorKind::UnexpectedEof) {
+                return None;
+            }
+            snapshot.open_checked().ok()?;
+            // Identical bytes need only one attempt per extension hint when the signature is unknown.
+            if detected.is_none() && decoded.is_err() {
+                rejected_hints.insert(format);
+                return None;
+            }
+            Some(decoded.map_err(|e| format!("Cannot decode image {}: {}", snapshot.path.display(), e)))
+        })
+        .ok_or("No unchanged, decodable image in this group. Scan again.")??;
     let thumbnail = img.thumbnail(250, 250);
     let mut buf = Vec::new();
     let mut cursor = std::io::Cursor::new(&mut buf);
@@ -813,6 +952,119 @@ fn reveal_file(id: String, state: tauri::State<'_, Mutex<AppState>>) -> Result<(
 mod tests {
     use super::*;
 
+    #[test]
+    fn scan_skips_content_work_for_a_unique_size() {
+        let root = tempfile::tempdir().unwrap();
+        let unique = root.path().join("unique.png");
+        fs::write(&unique, b"unique size").unwrap();
+        for name in ["first.png", "second.png"] {
+            fs::write(root.path().join(name), b"duplicates").unwrap();
+        }
+
+        let (result, _) = scan_folder_files(root.path(), 1, &AtomicBool::new(false), |progress| {
+            if progress.fraction == 0.05 {
+                // Size discovery is complete. Trying to open this file now would fail.
+                fs::remove_file(&unique).unwrap();
+            }
+        })
+        .unwrap();
+
+        assert!(!unique.exists());
+        assert_eq!(result.groups.len(), 1);
+        assert_eq!(result.groups[0].files.len(), 2);
+        assert_eq!(result.skipped.unreadable_files, 0);
+        assert_eq!(result.skipped.metadata_files, 0);
+    }
+
+    #[test]
+    fn same_size_and_hash_are_partitioned_by_exact_bytes() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = dunce::canonicalize(directory.path()).unwrap();
+        let cancel_requested = AtomicBool::new(false);
+        let mut snapshots = Vec::new();
+        for (name, bytes) in [
+            ("a.png", b"one"),
+            ("b.png", b"two"),
+            ("c.png", b"one"),
+            ("d.png", b"two"),
+            ("e.png", b"odd"),
+        ] {
+            let path = root.join(name);
+            fs::write(&path, bytes).unwrap();
+            let Ok(mut snapshot) = scan_file(path, 3, &cancel_requested) else {
+                panic!("could not scan {name}");
+            };
+            snapshot.hash = [0; 16];
+            snapshots.push(snapshot);
+        }
+
+        let mut skipped = Skipped::default();
+        let groups = partition_matching_bytes(snapshots, &cancel_requested, &mut skipped).unwrap();
+        let paths: Vec<Vec<_>> = groups
+            .into_iter()
+            .map(|group| group.into_iter().map(|snapshot| snapshot.path).collect())
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                vec![root.join("a.png"), root.join("c.png")],
+                vec![root.join("b.png"), root.join("d.png")],
+            ]
+        );
+        assert_eq!(skipped.unreadable_files, 0);
+        assert_eq!(skipped.metadata_files, 0);
+    }
+
+    #[test]
+    fn group_thumbnail_reads_the_signature_of_an_unchanged_copy() {
+        let root = tempfile::tempdir().unwrap();
+        let first = root.path().join("first.png");
+        image::RgbImage::from_pixel(2, 1, image::Rgb([200, 100, 50]))
+            .save(&first)
+            .unwrap();
+        fs::copy(&first, root.path().join("second.jpg")).unwrap();
+        let (result, scan) =
+            scan_folder_files(root.path(), 1, &AtomicBool::new(false), |_| {}).unwrap();
+        fs::write(first, b"changed after scanning").unwrap();
+
+        let files = scan.group_snapshots(&result.groups[0].files[0].id).unwrap();
+        let thumbnail = encode_group_thumbnail(&files).unwrap();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(thumbnail.strip_prefix("data:image/png;base64,").unwrap())
+            .unwrap();
+        let thumbnail = image::load_from_memory(&bytes).unwrap().to_rgb8();
+        assert_eq!(*thumbnail.get_pixel(0, 0), image::Rgb([200, 100, 50]));
+    }
+
+    #[test]
+    fn group_thumbnail_uses_a_tiff_extension_for_an_unknown_signature() {
+        let root = tempfile::tempdir().unwrap();
+        // A one-pixel BigTIFF generated by the TIFF encoder used by the app.
+        let encoded = concat!(
+            "SUkrAAgAAAARAAAAAAAAAHsOAAAAAAAAAAABBAABAAAAAAAAAAEAAAAAAAAAAQEEAAEAAAAA",
+            "AAAAAQAAAAAAAAACAQMAAQAAAAAAAAAIAAAAAAAAAAMBAwABAAAAAAAAAAEAAAAAAAAABgED",
+            "AAEAAAAAAAAAAQAAAAAAAAARARAAAQAAAAAAAAAQAAAAAAAAABUBAwABAAAAAAAAAAEAAAAA",
+            "AAAAFgEEAAEAAAAAAAAAQEIPAAAAAAAXARAAAQAAAAAAAAABAAAAAAAAABoBBQABAAAAAAAA",
+            "AAEAAAABAAAAGwEFAAEAAAAAAAAAAQAAAAEAAAAoAQMAAQAAAAAAAAABAAAAAAAAAD0BAwAB",
+            "AAAAAAAAAAEAAAAAAAAAUwEDAAEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAA==",
+        );
+        let big_tiff = base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap();
+        for name in ["01-mislabeled.png", "02-correct.tif"] {
+            fs::write(root.path().join(name), &big_tiff).unwrap();
+        }
+        let (result, scan) =
+            scan_folder_files(root.path(), 1, &AtomicBool::new(false), |_| {}).unwrap();
+        let snapshots = scan.group_snapshots(&result.groups[0].files[0].id).unwrap();
+        let thumbnail = encode_group_thumbnail(&snapshots).unwrap();
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(thumbnail.strip_prefix("data:image/png;base64,").unwrap())
+            .unwrap();
+        let thumbnail = image::load_from_memory(&bytes).unwrap().to_rgb8();
+        assert_eq!(*thumbnail.get_pixel(0, 0), image::Rgb([123, 123, 123]));
+    }
+
     #[cfg(unix)]
     #[test]
     fn keep_first_preserves_original_when_a_folder_is_linked() {
@@ -834,12 +1086,12 @@ mod tests {
         assert_eq!(result.groups.len(), 1);
         let files = &result.groups[0].files;
         assert_eq!(files.len(), 2);
-        let keeper = files[0].id.as_deref().unwrap();
+        let keeper = &files[0].id;
         assert_eq!(
             scan.path(keeper).unwrap(),
             dunce::canonicalize(&original).unwrap()
         );
-        let selected = files[1].id.clone().unwrap();
+        let selected = files[1].id.clone();
         assert_eq!(
             scan.path(&selected).unwrap(),
             dunce::canonicalize(&duplicate).unwrap()
@@ -866,9 +1118,9 @@ mod tests {
         let (result, mut scan) =
             scan_folder_files(root.path(), 1, &AtomicBool::new(false), |_| {}).unwrap();
         let files = &result.groups[0].files;
-        let keeper = files[0].id.as_ref().unwrap();
-        let failed = files[1].id.as_ref().unwrap();
-        let removed = files[2].id.as_ref().unwrap();
+        let keeper = &files[0].id;
+        let failed = &files[1].id;
+        let removed = &files[2].id;
 
         let outcome = scan.remove_files(
             vec![failed.clone(), removed.clone()],
@@ -900,12 +1152,10 @@ mod tests {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
         .manage(Mutex::new(AppState::default()))
         .invoke_handler(tauri::generate_handler![
             scan_folder,
             cancel_scan,
-            get_file_info,
             get_thumbnail,
             trash_files,
             delete_files,
