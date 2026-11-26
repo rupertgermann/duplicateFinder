@@ -1,56 +1,52 @@
 # Duplicate Image Finder
 
-A Tauri v2 desktop application for finding and managing exact duplicate image files with a Rust backend and a single-file HTML/CSS/JavaScript frontend.
+A Tauri v2 desktop app for finding and managing exact duplicate image files. It uses a Rust backend and a single-file HTML, CSS, and JavaScript frontend.
 
-![Rust](https://img.shields.io/badge/Rust-stable-orange) ![Tauri](https://img.shields.io/badge/Tauri-v2-blue) ![App](https://img.shields.io/badge/App-DuplicateImageFinder-green) ![License](https://img.shields.io/badge/License-MIT-yellow)
+[Release notes](https://github.com/rupertgermann/duplicateFinder/releases)
 
 ## Screenshots
 
-### Welcome Screen
-![Welcome Screen](screenshots/welcome.png)
+### Welcome screen
 
-### Duplicate Groups View
-![Main View](screenshots/main-view.png)
+![Welcome screen with the folder picker and scan controls](docs/screenshots/welcome.png)
+
+### Duplicate groups
+
+![Scan results with a selected duplicate group and two matching image previews](docs/screenshots/main-view.png)
 
 ## Features
 
-- Fast parallel MD5 hashing across all CPU cores with [rayon](https://crates.io/crates/rayon)
-- Recursive folder scanning that follows directory symlinks via [walkdir](https://crates.io/crates/walkdir)
-- Duplicate grouping for exact file matches
-- Sidebar navigation for duplicate groups with previous/next controls
-- Thumbnail previews rendered at `250x250`
-- Per-file metadata including name, full path, dimensions, file size, raw byte size, and modification timestamp
-- Bulk selection helpers for keeping the first file or the largest file in each group
-- Per-file actions for opening a file or revealing it in the system file manager
-- Group-level actions for moving selected files to Trash or deleting them permanently
-- Progress updates during scan, hash, grouping, and metadata phases
-- Cooperative scan cancellation from the `Cancel` button
-- In-memory thumbnail caching for the active scan results
-- Native release binary output plus macOS `.app` bundle support
+- Recursive folder scanning with parallel MD5 hashing
+- Sidebar navigation with **Prev** and **Next** controls for duplicate groups
+- Cached thumbnails up to 250 × 250 pixels, with each file's name, full path, dimensions, size, and modification time
+- Selection helpers for keeping the first or largest file in a group
+- Per-file actions for opening an image or showing it in the system file manager
+- Group actions for moving selected files to Trash or deleting them permanently
+- Scan progress, cancellation, and a count of skipped items
+- Light and dark themes that follow the system preference until you choose a theme
 
-## Supported Files
+## Supported files
 
 The scanner treats the following extensions as image files:
 
 `jpg`, `jpeg`, `png`, `gif`, `bmp`, `tiff`, `tif`, `webp`, `heic`, `heif`, `avif`, `ico`
 
-Thumbnail generation and image dimension extraction use the Rust [`image`](https://crates.io/crates/image) crate with decoders enabled for:
+Thumbnails and dimensions are available for JPEG, PNG, GIF, BMP, TIFF, WebP, and ICO files that the app can decode.
 
-`jpeg`, `png`, `gif`, `bmp`, `tiff`, `webp`, `ico`
-
-Files that match a scanned extension but cannot be decoded still participate in duplicate detection, but the UI can show `?` for dimensions or `[no preview]` for thumbnails.
+Files that the app cannot decode still participate in duplicate detection. The app shows **?** for unknown dimensions and **No preview** when thumbnail generation fails.
 
 ## Requirements
 
 - [Rust toolchain](https://rustup.rs/) (stable)
 - [Node.js](https://nodejs.org/) and npm
+- [Tauri v2 system dependencies for your operating system](https://v2.tauri.app/start/prerequisites/)
 
 ## Setup
 
 ```bash
 git clone https://github.com/rupertgermann/duplicateFinder.git
 cd duplicateFinder
-npm install
+npm ci
 ```
 
 ## Commands
@@ -58,79 +54,46 @@ npm install
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Start the Tauri app in development mode. |
-| `npm run build` | Build the release binary with `tauri build`. |
+| `npm run build` | Build the release executable. |
 | `npm run build -- --bundles app` | Build the macOS `.app` bundle. |
 | `npm run tauri -- <args>` | Pass any additional Tauri CLI command or option through npm. |
-| `npx tauri dev` | Direct Tauri CLI equivalent of `npm run dev`. |
-| `npx tauri build` | Direct Tauri CLI equivalent of `npm run build`. |
-| `npx tauri build --bundles app` | Direct Tauri CLI command for the macOS app bundle. |
+| `cargo test --manifest-path src-tauri/Cargo.toml --locked` | Run the Rust tests. |
 
-## Build Output
-
-`npm run build` produces the release executable at:
-
-```text
-src-tauri/target/release/duplicate-finder
-```
-
-`npm run build -- --bundles app` produces the macOS app bundle at:
-
-```text
-src-tauri/target/release/bundle/macos/DuplicateImageFinder.app
-```
+With Cargo's default target directory, the release executable is at `src-tauri/target/release/duplicate-finder` (with `.exe` on Windows). The macOS bundle is at `src-tauri/target/release/bundle/macos/DuplicateImageFinder.app`.
 
 ## Usage
 
-1. Click `Choose Folder...` and select a directory to scan.
-2. Click `Scan` to find matching image files and group exact duplicates. The status bar reports scan errors and counts items skipped during a partial scan.
-3. Browse duplicate groups in the left sidebar.
-4. Review thumbnails, paths, dimensions, file sizes, and modification timestamps in the main panel.
-5. Use `Select All Except First`, `Select All Except Largest`, or `Deselect All` to prepare a batch action.
-6. Use `Move to Trash` for recoverable removal or `Delete Permanently` for direct file deletion.
-7. Use `Open` or `Show in Folder` for per-file inspection before removing anything.
-8. Continue through the remaining groups until the list is cleared.
+1. Click **Choose Folder...** or enter the folder path.
+2. Click **Scan**. The status bar shows progress, errors, and the number of skipped items in a partial scan. Click **Cancel** to stop an active scan.
+3. Choose a duplicate group in the sidebar. Use **Open** or **Show in Folder** to inspect a file.
+4. Select the files to remove. Use **Select All Except First** or **Select All Except Largest** to keep one file. Use **Deselect All** to clear the selection.
+5. Click **Move to Trash** or **Delete Permanently**, then review the confirmation. Selecting every file manually adds a warning that the action removes the entire group.
 
-## Current Behavior Notes
+## How scanning and removal work
 
-- The scanner groups files with matching MD5 hashes.
-- Duplicate groups are sorted by group size first, then by the first file path in the group.
-- Files inside each group are sorted by path.
-- The scanner counts a file reached through multiple directory paths once and excludes file symlinks from duplicate groups.
-- The selection helpers remember which file to keep. The app verifies the keeper and compares its bytes with each selected file before allowing removal. Selecting every file manually requires confirmation that the action removes the whole group.
-- The app reports removal failures and updates the affected group with the files that remain. Groups with fewer than two files disappear without a rescan.
-- On macOS, `Move to Trash` reports a per-file error for paths containing invalid UTF-8. On Windows, it reports a per-file error for paths that require a verbatim prefix, including UNC network paths.
-- The toolbar `Cancel` button cooperatively stops active scans. Cancellation is checked during discovery, hashing, and metadata assembly, so a scan stops as soon as the in-flight work reaches a safe interruption point.
+- The scanner follows directory symlinks, visits each directory once, and skips file symlinks.
+- Groups contain files with matching MD5 hashes. The app sorts groups by file count, largest first, then by the first file's path. It sorts files within each group by path.
+- **Select All Except Largest** keeps the first file in path order when sizes tie.
+- Before removal, the app checks that each selected file still matches the scan. Unless you confirm removal of the whole group, it also checks for an unchanged, byte-for-byte matching file to keep. When you use a selection helper, the app checks the file chosen by that helper.
+- The status bar reports removal failures. Successful removals update the affected group immediately. Groups with fewer than two files disappear from the list.
+- **Move to Trash** reports a per-file error for paths containing invalid UTF-8 on macOS and paths that need a verbatim prefix on Windows, including UNC network paths.
 
 ## Architecture
 
-The active application is split into two main parts:
+- The frontend contains the layout, styles, and UI event handlers. [`src/index.html`](src/index.html)
+- The Rust backend handles scans, thumbnails, file actions, and Tauri setup. [`src-tauri/src/lib.rs`](src-tauri/src/lib.rs)
 
-- `src/index.html`: the entire frontend, including layout, styling, event handling, rendering, selection helpers, and Tauri IPC calls
-- `src-tauri/src/lib.rs`: the Rust backend for scanning, hashing, metadata extraction, thumbnail generation, file operations, progress events, and Tauri startup
+The frontend calls `scan_folder`, `cancel_scan`, `get_thumbnail`, `trash_files`, `delete_files`, `open_file`, and `reveal_file`. The backend emits `scan-progress` events to update the status bar and progress bar.
 
-The frontend calls these Tauri commands:
-
-- `scan_folder`
-- `cancel_scan`
-- `get_thumbnail`
-- `trash_files`
-- `delete_files`
-- `open_file`
-- `reveal_file`
-
-The backend emits `scan-progress` events during long-running scans so the status bar and progress bar stay updated.
-
-Detailed implementation notes live in [docs/technical-architecture.md](docs/technical-architecture.md).
-
-## Project Structure
+## Project structure
 
 ```text
 duplicateFinder/
 ├── docs/
-│   └── technical-architecture.md
-├── screenshots/
-│   ├── main-view.png
-│   └── welcome.png
+│   ├── agents/
+│   └── screenshots/
+│       ├── main-view.png
+│       └── welcome.png
 ├── src/
 │   └── index.html
 ├── src-tauri/
