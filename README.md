@@ -12,9 +12,7 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files. It 
 
 ### Duplicate groups
 
-![Scan results with a selected duplicate group and two matching image previews](docs/screenshots/main-view.png)
-
-_This screenshot shows the earlier per-file preview layout._
+![Scan results with one shared preview and two matching files in the selected group](docs/screenshots/main-view.png)
 
 ## Features
 
@@ -118,6 +116,10 @@ duplicateFinder/
 ├── package-lock.json
 └── package.json
 ```
+
+## Support
+
+Support development on [Patreon](https://patreon.com/rupertgermann) or [Buy Me a Coffee](https://buymeacoffee.com/rupertgermann).
 
 ## License
 
