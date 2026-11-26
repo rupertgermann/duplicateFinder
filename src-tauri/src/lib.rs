@@ -400,6 +400,7 @@ fn scan_folder_files(
             match directory_identity(entry.path()) {
                 Ok(identity) if !directories.insert(identity) => entries.skip_current_dir(),
                 Ok(_) => {}
+                Err(error) if entry.depth() == 0 => return Err(root_error(error)),
                 Err(_) => {
                     entries.skip_current_dir();
                     skipped.entries += 1;
@@ -808,13 +809,15 @@ fn reveal_file(id: String, state: tauri::State<'_, Mutex<AppState>>) -> Result<(
     Ok(())
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::fs::symlink;
 
+    #[cfg(unix)]
     #[test]
     fn keep_first_preserves_original_when_a_folder_is_linked() {
+        use std::os::unix::fs::symlink;
+
         let directory = tempfile::tempdir().unwrap();
         let photos = directory.path().join("photos");
         let alias = directory.path().join("alias");
@@ -851,6 +854,42 @@ mod tests {
         assert_eq!(fs::read(original).unwrap(), bytes);
         assert_eq!(fs::read(alias.join("first.jpg")).unwrap(), bytes);
         assert!(!duplicate.exists());
+    }
+
+    #[test]
+    fn partial_removal_keeps_the_failed_file_and_its_keeper() {
+        let root = tempfile::tempdir().unwrap();
+        let names = ["01-keeper.png", "02-failed.png", "03-removed.png"];
+        for name in names {
+            fs::write(root.path().join(name), b"matching image bytes").unwrap();
+        }
+        let (result, mut scan) =
+            scan_folder_files(root.path(), 1, &AtomicBool::new(false), |_| {}).unwrap();
+        let files = &result.groups[0].files;
+        let keeper = files[0].id.as_ref().unwrap();
+        let failed = files[1].id.as_ref().unwrap();
+        let removed = files[2].id.as_ref().unwrap();
+
+        let outcome = scan.remove_files(
+            vec![failed.clone(), removed.clone()],
+            Some(keeper),
+            false,
+            |path| {
+                if path.ends_with(names[1]) {
+                    return Err("Permission denied".into());
+                }
+                fs::remove_file(path).map_err(|error| error.to_string())
+            },
+        );
+
+        assert_eq!(outcome.succeeded_ids, [removed.clone()]);
+        assert_eq!(outcome.failures.len(), 1);
+        assert_eq!(&outcome.failures[0].id, failed);
+        assert_eq!(scan.groups, [vec![keeper.clone(), failed.clone()]]);
+        assert!(scan.path(removed).is_err());
+        assert!(root.path().join(names[0]).is_file());
+        assert!(root.path().join(names[1]).is_file());
+        assert!(!root.path().join(names[2]).exists());
     }
 }
 

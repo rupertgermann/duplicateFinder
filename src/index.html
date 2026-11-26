@@ -1158,7 +1158,7 @@ input:focus-visible {
     if (scanning || destructiveActionPending) return;
 
     var folder = pickedFolder === null ? folderInput.value : pickedFolder;
-    if (!folder.trim()) {
+    if (folder === '') {
       setStatus('Please select a folder first.');
       return;
     }
