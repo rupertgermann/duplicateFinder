@@ -15,7 +15,7 @@ A Tauri v2 desktop application for finding and managing exact duplicate image fi
 ## Features
 
 - Fast parallel MD5 hashing across all CPU cores with [rayon](https://crates.io/crates/rayon)
-- Recursive folder scanning with symlink traversal via [walkdir](https://crates.io/crates/walkdir)
+- Recursive folder scanning that follows directory symlinks via [walkdir](https://crates.io/crates/walkdir)
 - Duplicate grouping for exact file matches
 - Sidebar navigation for duplicate groups with previous/next controls
 - Thumbnail previews rendered at `250x250`
@@ -82,7 +82,7 @@ src-tauri/target/release/bundle/macos/DuplicateImageFinder.app
 ## Usage
 
 1. Click `Choose Folder...` and select a directory to scan.
-2. Click `Scan` to walk the directory tree, hash all matching image files, and group exact duplicates.
+2. Click `Scan` to find matching image files and group exact duplicates. The status bar reports scan errors and counts items skipped during a partial scan.
 3. Browse duplicate groups in the left sidebar.
 4. Review thumbnails, paths, dimensions, file sizes, and modification timestamps in the main panel.
 5. Use `Select All Except First`, `Select All Except Largest`, or `Deselect All` to prepare a batch action.
@@ -92,10 +92,13 @@ src-tauri/target/release/bundle/macos/DuplicateImageFinder.app
 
 ## Current Behavior Notes
 
-- Duplicate detection is based on exact MD5 matches, not visual similarity.
+- The scanner groups files with matching MD5 hashes.
 - Duplicate groups are sorted by group size first, then by the first file path in the group.
 - Files inside each group are sorted by path.
-- The frontend resets its state immediately after successful trash/delete actions so resolved groups disappear without a rescan.
+- The scanner counts a file reached through multiple directory paths once and excludes file symlinks from duplicate groups.
+- The selection helpers remember which file to keep. The app verifies the keeper and compares its bytes with each selected file before allowing removal. Selecting every file manually requires confirmation that the action removes the whole group.
+- The app reports removal failures and updates the affected group with the files that remain. Groups with fewer than two files disappear without a rescan.
+- On macOS, `Move to Trash` reports a per-file error for paths containing invalid UTF-8. On Windows, it reports a per-file error for paths that require a verbatim prefix, including UNC network paths.
 - The toolbar `Cancel` button cooperatively stops active scans. Cancellation is checked during discovery, hashing, and metadata assembly, so a scan stops as soon as the in-flight work reaches a safe interruption point.
 
 ## Architecture
@@ -109,7 +112,6 @@ The frontend calls these Tauri commands:
 
 - `scan_folder`
 - `cancel_scan`
-- `get_file_info`
 - `get_thumbnail`
 - `trash_files`
 - `delete_files`
