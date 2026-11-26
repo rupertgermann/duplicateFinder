@@ -23,7 +23,7 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files. It 
 - Per-file actions for opening an image or showing it in the system file manager
 - Group actions for moving selected files to Trash or deleting them permanently
 - Scan progress, cancellation, and a count of skipped items
-- Light and dark themes that follow the system preference until you choose a theme
+- Dark theme by default, with a light theme option and a remembered preference
 
 ## Supported files
 
