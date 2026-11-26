@@ -85,8 +85,8 @@ fn move_to_home_trash(
     match result {
         Ok(false) => Ok(()),
         Ok(true) => {
-            // Preserve the staged original until the new directory entry is durable.
-            files.sync_all()?;
+            // The Trash hierarchy may be new on a different volume than the staged original.
+            unix::syncfs(&files)?;
             unix::unlinkat(directory, name, AtFlags::empty())?;
             Ok(())
         }
