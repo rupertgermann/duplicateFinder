@@ -25,7 +25,7 @@ _This screenshot shows the earlier per-file preview layout._
 - Per-file actions for opening an image or showing it in the system file manager
 - Group actions for moving selected files to Trash or deleting them permanently
 - Scan progress, cancellation, and a count of skipped items
-- Light and dark themes that follow the system preference until you choose a theme, with bundled fonts that work offline
+- Dark theme by default, with a remembered light or dark preference and bundled fonts that work offline
 
 ## Supported files
 
