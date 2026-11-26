@@ -35,12 +35,14 @@ The frontend keeps these main pieces of state in memory:
 - `currentGroupIndex`
 - `scanning`
 - `cancelled`
+- `destructiveActionPending`
+- `keeperId`
 - `thumbnailCache`
 
 ### Frontend Behaviors
 
 - Opens the folder picker with the Tauri dialog API
-- Starts scans with `scan_folder`
+- Starts scans with `scan_folder` and reports root scan errors and partial scan counts in the status bar
 - Cancels scans with `cancel_scan`
 - Listens for `scan-progress`
 - Renders duplicate groups in the sidebar
@@ -48,7 +50,7 @@ The frontend keeps these main pieces of state in memory:
 - Loads thumbnails lazily with `get_thumbnail`
 - Applies selection helpers for first-file and largest-file retention strategies
 - Calls `trash_files` and `delete_files` for batch actions
-- Removes deleted files from the in-memory state immediately so resolved groups disappear without a full rescan
+- Removes files by the returned success IDs in the group that started the action and drops the group if fewer than two files remain
 
 ## Backend Responsibilities
 
@@ -66,12 +68,12 @@ The frontend keeps these main pieces of state in memory:
 
 | Type | Purpose |
 | --- | --- |
-| `FileInfo` | Path, file name, formatted size, raw byte size, modified timestamp, and dimensions for one file |
+| `FileInfo` | Display path, file name, sizes, modified timestamp, and dimensions. Scan results also include a file ID. |
 | `DuplicateGroup` | One duplicate set containing multiple `FileInfo` records |
-| `ScanResult` | Wrapper returned from `scan_folder` |
-| `ActionResult` | Success count and per-file errors for trash/delete operations |
+| `ScanResult` | Duplicate `groups` and `skipped` counts for `entries`, `unreadable_files`, and `metadata_files` |
+| `ActionResult` | `succeeded_ids` and a list of `failures` with each file's `id` and `error` |
 | `ScanProgress` | Progress event payload with a user-facing message and fractional completion |
-| `AppState` | Shared application state containing the latest duplicate groups and scan-cancellation flag |
+| `AppState` | Shared state containing IDs, native paths, and snapshots for the latest scan, plus active scan cancellation state |
 
 ### Helper Functions
 
@@ -81,9 +83,9 @@ The frontend keeps these main pieces of state in memory:
 | `format_size()` | Formats byte counts for display |
 | `format_modified()` | Formats filesystem timestamps into `YYYY-MM-DD HH:MM` text |
 | `days_to_ymd()` | Supports timestamp formatting without adding a date/time crate |
-| `is_scan_cancelled()` | Reads the shared cooperative cancellation flag |
+| `check_cancelled()` | Checks the cooperative cancellation flag and returns an error if cancellation was requested |
 | `compute_md5()` | Streams file contents in `64 KB` chunks, checks for cancellation, and computes the MD5 hash |
-| `build_file_info()` | Reads metadata and image dimensions for the UI |
+| `build_file_info()` | Formats file metadata and reads image dimensions for the UI |
 
 ### Tauri Commands
 
@@ -91,26 +93,26 @@ The frontend keeps these main pieces of state in memory:
 | --- | --- | --- |
 | `scan_folder(folder)` | Walk the selected directory, hash image files in parallel, group exact duplicates, build `FileInfo` output, emit progress, and store results in app state | Yes |
 | `cancel_scan()` | Request cooperative cancellation of the active scan job | Yes |
-| `get_file_info(path)` | Return metadata for a single file | No |
-| `get_thumbnail(path)` | Generate a `250x250` PNG thumbnail and return it as a base64 data URL | Yes |
-| `trash_files(paths)` | Send selected files to the operating system trash | Yes |
-| `delete_files(paths)` | Permanently remove selected files from disk | Yes |
-| `open_file(path)` | Open a file with the default operating system handler | Yes |
-| `reveal_file(path)` | Reveal the file in Finder or Explorer, or open the parent directory on Linux | Yes |
+| `get_file_info(path)` | Return metadata for a single file with `id` set to `null` | No |
+| `get_thumbnail(id)` | Generate a `250x250` PNG thumbnail and return it as a base64 data URL | Yes |
+| `trash_files(ids, keeperId, allowRemoveAll)` | Send selected files to the operating system trash | Yes |
+| `delete_files(ids, keeperId, allowRemoveAll)` | Permanently remove selected files from disk | Yes |
+| `open_file(id)` | Open a file with the default operating system handler | Yes |
+| `reveal_file(id)` | Show the file in the system file manager | Yes |
+
+The backend uses file IDs that are unique across scans to look up native paths. The frontend displays paths and names as text.
+
+Before removing each file, the backend checks its path, filesystem identity, size, timestamps, and MD5 hash against the scan. An unchanged, unselected file must have the same bytes unless the user confirms removal of the entire group. When the frontend supplies a keeper ID, the backend checks that keeper.
 
 ## Duplicate Detection Pipeline
 
-The application detects exact duplicate files rather than visually similar images.
+1. Walk the selected directory recursively with `WalkDir` and follow directory symlinks. Track directories by filesystem identity so each directory is visited once even if it has several paths. Fail the scan if the scan root is unavailable.
+2. Find regular files with recognized image extensions and resolve their paths. The scanner excludes file symlinks and counts each hard link as a separate entry.
+3. Compute MD5 hashes for those files in parallel with `rayon` and group files by hash.
+4. Build `FileInfo` records for members of duplicate groups and discard groups with fewer than two usable records.
+5. Sort files inside each group by path. Sort groups by descending group size, then by first file path.
 
-1. Walk the selected directory recursively with `WalkDir`.
-2. Follow symlinks during traversal.
-3. Keep only file entries with recognized image extensions.
-4. Compute MD5 hashes for those files in parallel with `rayon`.
-5. Group files by identical hash value.
-6. Discard groups with fewer than two files.
-7. Build `FileInfo` records for the remaining files.
-8. Sort groups by descending group size, then by first file path.
-9. Sort files inside each group by path.
+The scan counts recoverable traversal, file read, and metadata errors as skipped items and returns the remaining duplicate groups.
 
 Cancellation is cooperative: the backend checks a shared atomic flag during directory walking, while reading file bytes for hashing, between parallel hash tasks, and while assembling output metadata. That lets the current safe unit of work finish and then exits without publishing partial scan results.
 
@@ -140,11 +142,11 @@ That means a file can still be scanned and grouped as a duplicate even when the 
 
 ## Desktop Integration
 
-The backend handles file opening and reveal actions per platform:
+The backend uses platform commands to open and reveal files.
 
-- macOS: `open` and `open -R`
-- Windows: `explorer` and `explorer /select,`
-- Linux: `xdg-open` for files or parent directories
+- On macOS, `open` opens the file and `open -R` reveals it in Finder.
+- On Windows, `explorer` opens the file and `explorer /select,` reveals it in File Explorer.
+- On Linux, `xdg-open` opens the file or its parent directory.
 
 The native entry point also sets the standard Windows release-mode subsystem flag so packaged builds do not show an extra console window.
 
@@ -193,7 +195,7 @@ Important output paths:
 
 ## Current Behavior Notes
 
-- Scan results are stored in shared Tauri state after `scan_folder()` completes.
-- The frontend caches thumbnails for the active scan result in memory only.
+- After a successful scan, the backend stores the corresponding file IDs and native paths in shared Tauri state.
+- The frontend caches thumbnails by file ID for the active scan.
 - The `Cancel` button invokes `cancel_scan`, disables further cancel clicks, and ignores further progress events while the backend winds down.
-- Cancelled scans do not overwrite the shared backend group state with partial or stale results.
+- Cancelled scans end without publishing duplicate groups.
