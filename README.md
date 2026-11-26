@@ -14,6 +14,8 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files. It 
 
 ![Scan results with a selected duplicate group and two matching image previews](docs/screenshots/main-view.png)
 
+_This screenshot shows the earlier per-file preview layout._
+
 ## Features
 
 - Recursive folder scanning with a file-size filter, parallel hashing, and byte-for-byte verification
