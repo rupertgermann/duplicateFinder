@@ -1242,6 +1242,7 @@ input:focus-visible {
     keeperId = null;
     renderGroupList();
     renderImages();
+    imageArea.scrollTop = 0;
     var items = groupListEl.querySelectorAll('li');
     if (items[index]) {
       items[index].scrollIntoView({ block: 'nearest' });
