@@ -76,8 +76,11 @@ With Cargo's default target directory, the release executable is at `src-tauri/t
 - The scanner follows directory symlinks, visits each directory once, and skips file symlinks.
 - The scanner hashes files only when they share a size with another file. It then compares files with matching hashes byte for byte. The app sorts groups by file count, largest first, then by the first file's path. It sorts files within each group by path.
 - Before removal, the app checks that each selected file still matches the scan. Unless you confirm removal of the whole group, it also checks for an unchanged, byte-for-byte matching file to keep. When you use **Select All Except First**, it checks that first file.
+- The app moves each selected entry into a temporary folder on the same volume before validating and removing it. If a failed or interrupted removal leaves a file in a `.duplicate-finder-recovery-*` folder, move it back to the parent folder after checking for a name conflict.
 - The status bar reports removal failures. Successful removals update the affected group immediately. Groups with fewer than two files disappear from the list.
 - **Move to Trash** reports a per-file error for paths containing invalid UTF-8 on macOS and paths that need a verbatim prefix on Windows, including UNC network paths.
+- To recover a file from Trash on macOS or Windows, move it back to its original folder manually. On Linux, the app records the original path in the home Trash, including for files from external volumes.
+- On Windows, removal requires a file system with persistent access controls.
 
 ## Architecture
 

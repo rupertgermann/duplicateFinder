@@ -12,6 +12,12 @@ use std::time::SystemTime;
 use tauri::{AppHandle, Emitter};
 use walkdir::WalkDir;
 
+#[cfg_attr(unix, path = "file_removal_unix.rs")]
+#[cfg_attr(windows, path = "file_removal_windows.rs")]
+mod file_removal;
+#[cfg(target_os = "linux")]
+mod file_removal_linux;
+
 // ---------------------------------------------------------------------------
 // Data types
 // ---------------------------------------------------------------------------
@@ -111,6 +117,8 @@ const IMAGE_EXTENSIONS: &[&str] = &[
     "jpg", "jpeg", "png", "gif", "bmp", "tiff", "tif", "webp", "heic", "heif", "avif", "ico",
 ];
 const SCAN_CANCELLED_MESSAGE: &str = "Scan cancelled.";
+const REMOVAL_STAGE_PREFIX: &str = ".duplicate-finder-recovery-";
+const REMOVAL_STAGE_RANDOM_LEN: usize = 20;
 
 fn is_image_file(path: &Path) -> bool {
     path.extension()
@@ -304,14 +312,16 @@ impl FileSnapshot {
         Ok(file)
     }
 
-    fn open_verified(&self) -> io::Result<File> {
-        let mut file = self.open_checked()?;
-        if compute_md5(&mut file, None)? != self.hash || FileStamp::read(&file)? != self.stamp {
+    fn verify_staged_file(&self, file: &mut File) -> io::Result<()> {
+        if FileStamp::read(file)? != self.stamp
+            || compute_md5(file, None)? != self.hash
+            || FileStamp::read(file)? != self.stamp
+        {
             return Err(io::Error::other(
                 "The file changed since the scan. Scan again.",
             ));
         }
-        Ok(file)
+        Ok(())
     }
 
     fn same_entry(&self, other: &Self) -> bool {
@@ -383,6 +393,7 @@ fn scan_folder_files(
     let mut skipped = Skipped::default();
     let mut directories = HashSet::new();
     let mut paths = HashSet::new();
+    let mut canonical_parents = HashMap::from([(root.clone(), Ok(root.clone()))]);
     let mut entries = WalkDir::new(root).follow_links(true).into_iter();
     while let Some(entry) = entries.next() {
         check_cancelled(cancel_requested)?;
@@ -402,6 +413,19 @@ fn scan_folder_files(
         };
 
         if entry.file_type().is_dir() {
+            if entry.depth() > 0
+                && entry
+                    .file_name()
+                    .as_encoded_bytes()
+                    .strip_prefix(REMOVAL_STAGE_PREFIX.as_bytes())
+                    .is_some_and(|suffix| {
+                        suffix.len() == REMOVAL_STAGE_RANDOM_LEN
+                            && suffix.iter().all(u8::is_ascii_alphanumeric)
+                    })
+            {
+                entries.skip_current_dir();
+                continue;
+            }
             match directory_identity(entry.path()) {
                 Ok(identity) if !directories.insert(identity) => entries.skip_current_dir(),
                 Ok(_) => {}
@@ -416,7 +440,10 @@ fn scan_folder_files(
             && is_image_file(entry.path())
         {
             let parent = entry.path().parent().expect("walked file has a parent");
-            match fs::canonicalize(parent) {
+            let canonical_parent = canonical_parents
+                .entry(parent.to_path_buf())
+                .or_insert_with(|| fs::canonicalize(parent));
+            match canonical_parent {
                 Ok(parent) => {
                     let path = parent.join(entry.file_name());
                     #[cfg(windows)]
@@ -427,6 +454,7 @@ fn scan_folder_files(
             }
         }
     }
+    drop(canonical_parents);
 
     let discovered = paths.len();
     let mut by_size = HashMap::<_, Vec<_>>::new();
@@ -663,7 +691,7 @@ impl ScanFiles {
         ids: Vec<String>,
         keeper_id: Option<&str>,
         allow_remove_all: bool,
-        remove: impl Fn(&Path) -> Result<(), String>,
+        remove: impl Fn(&file_removal::StagedFile<'_>) -> Result<(), String>,
     ) -> ActionResult {
         let mut selected = HashSet::new();
         let ids: Vec<_> = ids
@@ -710,26 +738,34 @@ impl ScanFiles {
         for id in ids {
             let snapshot = &self.files[&id].snapshot;
             let removal = (|| {
-                let mut file = snapshot.open_verified().map_err(|e| e.to_string())?;
-                if !remove_all
-                    && !survivors.iter().any(|survivor| {
-                        !survivor.same_entry(snapshot)
-                            && survivor.stamp.size == snapshot.stamp.size
-                            && survivor.open_checked().is_ok_and(|mut other| {
-                                matching_bytes(&mut file, &mut other, None).unwrap_or(false)
-                                    && survivor.open_checked().is_ok()
+                let scanned_entry = snapshot.open_checked().map_err(|e| e.to_string())?;
+                file_removal::with_staged_file(
+                    &snapshot.path,
+                    snapshot.parent_identity,
+                    |staged, mut file| {
+                        snapshot
+                            .verify_staged_file(&mut file)
+                            .map_err(|e| e.to_string())?;
+                        if !remove_all
+                            && !survivors.iter().any(|survivor| {
+                                !survivor.same_entry(snapshot)
+                                    && survivor.stamp.size == snapshot.stamp.size
+                                    && survivor.open_checked().is_ok_and(|mut other| {
+                                        matching_bytes(&mut file, &mut other, None).unwrap_or(false)
+                                            && survivor.open_checked().is_ok()
+                                    })
                             })
-                    })
-                {
-                    return Err(
-                        "No unchanged, matching file to keep. Scan again before removing files."
-                            .into(),
-                    );
-                }
-                // shortcut: path checks and removal are separate OS operations, use handle-relative
-                // removal where available if concurrent filesystem changes must be fully excluded.
-                snapshot.open_checked().map_err(|e| e.to_string())?;
-                remove(&snapshot.path)
+                        {
+                            return Err("No unchanged, matching file to keep. Scan again before removing files.".into());
+                        }
+                        if !FileStamp::read(&file).is_ok_and(|stamp| stamp == snapshot.stamp) {
+                            return Err("The file changed since the scan. Scan again.".into());
+                        }
+                        drop(file);
+                        drop(scanned_entry);
+                        remove(staged)
+                    },
+                )
             })();
             match removal {
                 Ok(()) => result.succeeded_ids.push(id),
@@ -851,21 +887,8 @@ async fn trash_files(
     allow_remove_all: bool,
     app: AppHandle,
 ) -> Result<ActionResult, String> {
-    remove_files(app, ids, keeper_id, allow_remove_all, |path| {
-        // shortcut: the macOS Trash library requires UTF-8 filenames, lift this guard once it accepts native paths.
-        #[cfg(target_os = "macos")]
-        if path.to_str().is_none() {
-            return Err("Trash on macOS cannot safely move this filename.".into());
-        }
-        // shortcut: the Windows Trash library strips verbatim prefixes, lift this guard once it preserves them.
-        #[cfg(windows)]
-        if matches!(
-            path.components().next(),
-            Some(std::path::Component::Prefix(prefix)) if prefix.kind().is_verbatim()
-        ) {
-            return Err("Trash on Windows cannot safely move this path.".into());
-        }
-        trash::delete(path).map_err(|e| e.to_string())
+    remove_files(app, ids, keeper_id, allow_remove_all, |staged| {
+        staged.trash()
     })
     .await
 }
@@ -877,8 +900,8 @@ async fn delete_files(
     allow_remove_all: bool,
     app: AppHandle,
 ) -> Result<ActionResult, String> {
-    remove_files(app, ids, keeper_id, allow_remove_all, |path| {
-        fs::remove_file(path).map_err(|e| e.to_string())
+    remove_files(app, ids, keeper_id, allow_remove_all, |staged| {
+        staged.delete()
     })
     .await
 }
@@ -888,7 +911,7 @@ async fn remove_files(
     ids: Vec<String>,
     keeper_id: Option<String>,
     allow_remove_all: bool,
-    remove: impl Fn(&Path) -> Result<(), String> + Send + 'static,
+    remove: impl Fn(&file_removal::StagedFile<'_>) -> Result<(), String> + Send + 'static,
 ) -> Result<ActionResult, String> {
     use tauri::Manager;
 
@@ -1097,8 +1120,8 @@ mod tests {
             dunce::canonicalize(&duplicate).unwrap()
         );
 
-        let outcome = scan.remove_files(vec![selected.clone()], Some(keeper), false, |path| {
-            fs::remove_file(path).map_err(|error| error.to_string())
+        let outcome = scan.remove_files(vec![selected.clone()], Some(keeper), false, |staged| {
+            staged.delete()
         });
 
         assert!(outcome.failures.is_empty());
@@ -1106,6 +1129,121 @@ mod tests {
         assert_eq!(fs::read(original).unwrap(), bytes);
         assert_eq!(fs::read(alias.join("first.jpg")).unwrap(), bytes);
         assert!(!duplicate.exists());
+    }
+
+    #[test]
+    fn removal_leaves_a_replacement_at_the_original_path() {
+        let root = tempfile::tempdir().unwrap();
+        let keeper = root.path().join("01-keeper.png");
+        let duplicate = root.path().join("02-duplicate.png");
+        let replacement = root.path().join("new-file");
+        fs::write(&keeper, b"matching image bytes").unwrap();
+        fs::write(&duplicate, b"matching image bytes").unwrap();
+        fs::write(&replacement, b"a separate file").unwrap();
+        let (result, mut scan) =
+            scan_folder_files(root.path(), 1, &AtomicBool::new(false), |_| {}).unwrap();
+        let files = &result.groups[0].files;
+        let selected = files[1].id.clone();
+
+        let outcome = scan.remove_files(
+            vec![selected.clone()],
+            Some(&files[0].id),
+            false,
+            |staged| {
+                fs::rename(&replacement, &duplicate).unwrap();
+                staged.delete()
+            },
+        );
+
+        assert_eq!(outcome.succeeded_ids, [selected]);
+        assert_eq!(fs::read(&keeper).unwrap(), b"matching image bytes");
+        assert_eq!(
+            fs::read(&duplicate).ok().as_deref(),
+            Some(&b"a separate file"[..])
+        );
+    }
+
+    #[test]
+    fn removal_restores_a_replacement_claimed_before_validation() {
+        let root = tempfile::tempdir().unwrap();
+        let path = dunce::canonicalize(root.path()).unwrap().join("copy.png");
+        let replacement = root.path().join("replacement");
+        let original = b"original bytes";
+        fs::write(&path, original).unwrap();
+        fs::write(&replacement, b"different bytes").unwrap();
+        let snapshot = scan_file(path.clone(), original.len() as u64, &AtomicBool::new(false))
+            .ok()
+            .unwrap();
+        let _checked = snapshot.open_checked().unwrap();
+        fs::rename(replacement, &path).unwrap();
+
+        let result =
+            file_removal::with_staged_file(&path, snapshot.parent_identity, |staged, mut file| {
+                snapshot
+                    .verify_staged_file(&mut file)
+                    .map_err(|e| e.to_string())?;
+                staged.delete()
+            });
+
+        assert!(result
+            .unwrap_err()
+            .contains("The file changed since the scan"));
+        assert_eq!(fs::read(&path).unwrap(), b"different bytes");
+        assert_eq!(fs::read_dir(root.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn removal_recovers_without_overwriting_a_reoccupied_path() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = dunce::canonicalize(root.path()).unwrap();
+        let path = parent.join("copy.png");
+        fs::write(&path, b"staged bytes").unwrap();
+        let result =
+            file_removal::with_staged_file(&path, directory_identity(&parent).unwrap(), |_, _| {
+                fs::write(&path, b"new contents").unwrap();
+                Err("Fixture removal failed.".into())
+            });
+
+        let stage = fs::read_dir(root.path())
+            .unwrap()
+            .filter_map(Result::ok)
+            .find(|entry| {
+                entry
+                    .file_name()
+                    .as_encoded_bytes()
+                    .starts_with(REMOVAL_STAGE_PREFIX.as_bytes())
+            })
+            .unwrap();
+        let recovery = parent.join(stage.file_name()).join("copy.png");
+        assert!(result
+            .unwrap_err()
+            .contains(&recovery.display().to_string()));
+        assert_eq!(fs::read(recovery).unwrap(), b"staged bytes");
+        assert_eq!(fs::read(&path).unwrap(), b"new contents");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn permanent_removal_stays_with_the_open_directory_after_a_rename() {
+        let root = tempfile::tempdir().unwrap();
+        let parent = dunce::canonicalize(root.path()).unwrap().join("photos");
+        let moved = parent.with_file_name("moved");
+        fs::create_dir(&parent).unwrap();
+        let path = parent.join("copy.png");
+        fs::write(&path, b"staged bytes").unwrap();
+
+        let mut replacement = None;
+        file_removal::with_staged_file(&path, directory_identity(&parent).unwrap(), |staged, _| {
+            fs::rename(&parent, &moved).unwrap();
+            fs::create_dir_all(staged.path.parent().unwrap()).unwrap();
+            fs::write(staged.path, b"unrelated bytes").unwrap();
+            replacement = Some(staged.path.to_path_buf());
+            staged.delete()
+        })
+        .unwrap();
+
+        assert_eq!(fs::read(replacement.unwrap()).unwrap(), b"unrelated bytes");
+        assert_eq!(fs::read_dir(moved).unwrap().count(), 0);
     }
 
     #[test]
@@ -1126,11 +1264,11 @@ mod tests {
             vec![failed.clone(), removed.clone()],
             Some(keeper),
             false,
-            |path| {
-                if path.ends_with(names[1]) {
+            |staged| {
+                if staged.path.ends_with(names[1]) {
                     return Err("Permission denied".into());
                 }
-                fs::remove_file(path).map_err(|error| error.to_string())
+                staged.delete()
             },
         );
 
