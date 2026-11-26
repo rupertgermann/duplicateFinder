@@ -3,10 +3,5 @@
   "identifier": "default",
   "description": "default permissions",
   "windows": ["main"],
-  "permissions": [
-    "core:default",
-    "dialog:default",
-    "dialog:allow-open",
-    "fs:default"
-  ]
+  "permissions": ["core:default", "dialog:allow-open", "dialog:allow-message"]
 }

@@ -1,6 +1,6 @@
 # Duplicate Image Finder
 
-A Tauri v2 desktop app for finding and managing exact duplicate image files. It uses a Rust backend and a single-file HTML, CSS, and JavaScript frontend.
+A Tauri v2 desktop app for finding and managing exact duplicate image files. It uses a Rust backend and an HTML, CSS, and JavaScript frontend.
 
 [Release notes](https://github.com/rupertgermann/duplicateFinder/releases)
 
@@ -16,14 +16,14 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files. It 
 
 ## Features
 
-- Recursive folder scanning with parallel MD5 hashing
+- Recursive folder scanning with a file-size filter, parallel hashing, and byte-for-byte verification
 - Sidebar navigation with **Prev** and **Next** controls for duplicate groups
-- Cached thumbnails up to 250 × 250 pixels, with each file's name, full path, dimensions, size, and modification time
-- Selection helpers for keeping the first or largest file in a group
+- One cached thumbnail up to 250 × 250 pixels per group, with each file's name, full path, dimensions, size, and modification time
+- A selection shortcut for keeping the first file in a group
 - Per-file actions for opening an image or showing it in the system file manager
 - Group actions for moving selected files to Trash or deleting them permanently
 - Scan progress, cancellation, and a count of skipped items
-- Light and dark themes that follow the system preference until you choose a theme
+- Light and dark themes that follow the system preference until you choose a theme, with bundled fonts that work offline
 
 ## Supported files
 
@@ -66,15 +66,14 @@ With Cargo's default target directory, the release executable is at `src-tauri/t
 1. Click **Choose Folder...** or enter the folder path.
 2. Click **Scan**. The status bar shows progress, errors, and the number of skipped items in a partial scan. Click **Cancel** to stop an active scan.
 3. Choose a duplicate group in the sidebar. Use **Open** or **Show in Folder** to inspect a file.
-4. Select the files to remove. Use **Select All Except First** or **Select All Except Largest** to keep one file. Use **Deselect All** to clear the selection.
+4. Select the files to remove. Use **Select All Except First** to keep the first file in path order. Use **Deselect All** to clear the selection.
 5. Click **Move to Trash** or **Delete Permanently**, then review the confirmation. Selecting every file manually adds a warning that the action removes the entire group.
 
 ## How scanning and removal work
 
 - The scanner follows directory symlinks, visits each directory once, and skips file symlinks.
-- Groups contain files with matching MD5 hashes. The app sorts groups by file count, largest first, then by the first file's path. It sorts files within each group by path.
-- **Select All Except Largest** keeps the first file in path order when sizes tie.
-- Before removal, the app checks that each selected file still matches the scan. Unless you confirm removal of the whole group, it also checks for an unchanged, byte-for-byte matching file to keep. When you use a selection helper, the app checks the file chosen by that helper.
+- The scanner hashes files only when they share a size with another file. It then compares files with matching hashes byte for byte. The app sorts groups by file count, largest first, then by the first file's path. It sorts files within each group by path.
+- Before removal, the app checks that each selected file still matches the scan. Unless you confirm removal of the whole group, it also checks for an unchanged, byte-for-byte matching file to keep. When you use **Select All Except First**, it checks that first file.
 - The status bar reports removal failures. Successful removals update the affected group immediately. Groups with fewer than two files disappear from the list.
 - **Move to Trash** reports a per-file error for paths containing invalid UTF-8 on macOS and paths that need a verbatim prefix on Windows, including UNC network paths.
 
@@ -95,6 +94,7 @@ duplicateFinder/
 │       ├── main-view.png
 │       └── welcome.png
 ├── src/
+│   ├── fonts/
 │   └── index.html
 ├── src-tauri/
 │   ├── capabilities/
@@ -117,3 +117,5 @@ duplicateFinder/
 ## License
 
 [MIT](LICENSE)
+
+The bundled fonts have separate SIL Open Font License notices in [`src/fonts/`](src/fonts/).

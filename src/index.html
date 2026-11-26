@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DuplicateImageFinder</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&family=Comfortaa:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="fonts/fonts.css">
 <style>
 /* ── Solarpunk Theme Variables ───────────────────────── */
 :root {
@@ -533,12 +531,6 @@ html, body {
   align-items: flex-start;
   gap: 16px;
   padding: 16px 0;
-  animation: rowFadeIn 0.3s ease both;
-}
-
-@keyframes rowFadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .image-row + .image-row {
@@ -944,7 +936,6 @@ input:focus-visible {
       </div>
       <div id="actionBar" style="display:none;">
         <button id="btnSelectAllExceptFirst" type="button">Select All Except First</button>
-        <button id="btnSelectAllExceptLargest" type="button">Select All Except Largest</button>
         <button id="btnDeselectAll" type="button">Deselect All</button>
         <div class="separator"></div>
         <button id="btnTrash" type="button">Move to Trash</button>
@@ -1006,7 +997,10 @@ input:focus-visible {
   var destructiveActionPending = false;
   var pickedFolder = null;
   var keeperId = null;
+  var thumbnailCacheLimit = 32;
   var thumbnailCache = new Map();
+  var thumbnailLoading = false;
+  var thumbnailContainer = null;
 
   // ── DOM refs ───────────────────────────────────────────
   var btnChooseFolder = document.getElementById('btnChooseFolder');
@@ -1019,7 +1013,6 @@ input:focus-visible {
   var imageArea = document.getElementById('imageArea');
   var actionBar = document.getElementById('actionBar');
   var btnSelectAllExceptFirst = document.getElementById('btnSelectAllExceptFirst');
-  var btnSelectAllExceptLargest = document.getElementById('btnSelectAllExceptLargest');
   var btnDeselectAll = document.getElementById('btnDeselectAll');
   var btnTrash = document.getElementById('btnTrash');
   var btnDelete = document.getElementById('btnDelete');
@@ -1064,7 +1057,6 @@ input:focus-visible {
     btnTrash.disabled = pending;
     btnDelete.disabled = pending;
     btnSelectAllExceptFirst.disabled = pending;
-    btnSelectAllExceptLargest.disabled = pending;
     btnDeselectAll.disabled = pending;
     for (var cb of getCheckboxes()) {
       cb.disabled = pending;
@@ -1279,8 +1271,10 @@ input:focus-visible {
   // ── Image rendering ────────────────────────────────────
   function renderImages(selectedIds = new Set()) {
     imageArea.innerHTML = '';
+    thumbnailContainer = null;
 
-    if (currentGroupIndex < 0 || currentGroupIndex >= groups.length) {
+    var group = groups[currentGroupIndex];
+    if (!group) {
       actionBar.style.display = 'none';
       var wrapper = document.createElement('div');
       wrapper.id = 'emptyState';
@@ -1310,35 +1304,30 @@ input:focus-visible {
     }
 
     actionBar.style.display = 'flex';
-    var files = groups[currentGroupIndex].files;
+    thumbnailContainer = document.createElement('div');
+    thumbnailContainer.className = 'thumb-container';
+    var placeholder = document.createElement('span');
+    placeholder.className = 'thumb-placeholder';
+    placeholder.textContent = 'Loading...';
+    thumbnailContainer.appendChild(placeholder);
+    imageArea.appendChild(thumbnailContainer);
+    loadThumbnail();
 
-    for (var i = 0; i < files.length; i++) {
-      var file = files[i];
+    for (var file of group.files) {
       var row = document.createElement('div');
       row.className = 'image-row';
-      row.style.animationDelay = (i * 0.04) + 's';
 
       // Checkbox
       var cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.dataset.id = file.id;
+      cb.setAttribute('aria-label', 'Select ' + file.path);
       cb.checked = selectedIds.has(file.id);
       cb.disabled = destructiveActionPending;
       cb.addEventListener('change', function() {
         if (this.checked && this.dataset.id === keeperId) keeperId = null;
       });
       row.appendChild(cb);
-
-      // Thumbnail
-      var thumbContainer = document.createElement('div');
-      thumbContainer.className = 'thumb-container';
-      var placeholder = document.createElement('span');
-      placeholder.className = 'thumb-placeholder';
-      placeholder.textContent = 'Loading...';
-      thumbContainer.appendChild(placeholder);
-      row.appendChild(thumbContainer);
-
-      loadThumbnail(file.id, thumbContainer);
 
       // File info
       var info = document.createElement('div');
@@ -1396,30 +1385,54 @@ input:focus-visible {
     }
   }
 
-  async function loadThumbnail(id, container) {
+  async function loadThumbnail() {
+    var group = groups[currentGroupIndex];
+    if (!group) return;
+
     var cache = thumbnailCache;
-    var request = cache.get(id);
-    try {
-      if (!request) {
-        request = invoke('get_thumbnail', { id: id });
-        cache.set(id, request);
-      }
-      setThumbnailImage(container, await request);
-    } catch (e) {
-      if (cache.get(id) === request) cache.delete(id);
-      container.innerHTML = '';
-      var span = document.createElement('span');
-      span.className = 'thumb-placeholder';
-      span.textContent = 'No preview';
-      container.appendChild(span);
+    var dataUrl = cache.get(group);
+    if (dataUrl) {
+      cache.delete(group);
+      cache.set(group, dataUrl);
+      setThumbnailImage(thumbnailContainer, dataUrl);
+      return;
     }
+
+    // Finish at most one request at a time and skip any groups visited in the meantime.
+    if (thumbnailLoading) return;
+    thumbnailLoading = true;
+    var id = group.files[0].id;
+    try {
+      dataUrl = await invoke('get_thumbnail', { id: id });
+    } catch {
+      dataUrl = null;
+    } finally {
+      thumbnailLoading = false;
+    }
+
+    if (cache === thumbnailCache && group.files.length >= 2) {
+      if (dataUrl) {
+        cache.set(group, dataUrl);
+        if (cache.size > thumbnailCacheLimit) cache.delete(cache.keys().next().value);
+      }
+      if (groups[currentGroupIndex] === group && (dataUrl || group.files[0].id === id)) {
+        setThumbnailImage(thumbnailContainer, dataUrl);
+        return;
+      }
+    }
+
+    if (!thumbnailCache.has(groups[currentGroupIndex])) loadThumbnail();
   }
 
   function setThumbnailImage(container, dataUrl) {
+    if (!dataUrl) {
+      container.firstElementChild.textContent = 'No preview';
+      return;
+    }
     container.innerHTML = '';
     var img = document.createElement('img');
     img.src = dataUrl;
-    img.alt = 'Thumbnail';
+    img.alt = 'Duplicate group preview';
     container.appendChild(img);
   }
 
@@ -1428,26 +1441,12 @@ input:focus-visible {
     return imageArea.querySelectorAll('input[type="checkbox"]');
   }
 
-  function selectAllExcept(file) {
-    keeperId = file.id;
+  btnSelectAllExceptFirst.addEventListener('click', function() {
+    if (currentGroupIndex < 0) return;
+    keeperId = groups[currentGroupIndex].files[0].id;
     for (var cb of getCheckboxes()) {
       cb.checked = cb.dataset.id !== keeperId;
     }
-  }
-
-  btnSelectAllExceptFirst.addEventListener('click', function() {
-    if (currentGroupIndex < 0) return;
-    selectAllExcept(groups[currentGroupIndex].files[0]);
-  });
-
-  btnSelectAllExceptLargest.addEventListener('click', function() {
-    if (currentGroupIndex < 0) return;
-    var files = groups[currentGroupIndex].files;
-    var largest = files[0];
-    for (var file of files) {
-      if (file.size_bytes > largest.size_bytes) largest = file;
-    }
-    selectAllExcept(largest);
   });
 
   btnDeselectAll.addEventListener('click', function() {
@@ -1471,9 +1470,9 @@ input:focus-visible {
     var groupIndex = groups.indexOf(group);
     var removed = new Set(deletedIds);
     group.files = group.files.filter(function(file) { return !removed.has(file.id); });
-    for (var id of deletedIds) thumbnailCache.delete(id);
 
     if (group.files.length < 2) {
+      thumbnailCache.delete(group);
       groups.splice(groupIndex, 1);
       if (viewedGroup === group) {
         selectGroup(Math.min(groupIndex, groups.length - 1));

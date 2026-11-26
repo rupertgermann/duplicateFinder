@@ -778,7 +778,7 @@ checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "duplicate-finder"
-version = "1.0.4"
+version = "1.0.5"
 dependencies = [
  "base64 0.22.1",
  "dunce",
@@ -786,13 +786,10 @@ dependencies = [
  "md-5",
  "rayon",
  "serde",
- "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
- "tauri-plugin-fs",
  "tempfile",
- "tokio",
  "trash",
  "walkdir",
  "windows-sys 0.61.2",
