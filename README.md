@@ -8,7 +8,7 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files on m
 
 On an Apple Silicon Mac, unzip the download and drag **DuplicateImageFinder.app** to **Applications**. [Download the macOS ZIP](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.zip) · [SHA-256 checksum](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.zip.sha256)
 
-If macOS blocks the unsigned app on first launch, see [Apple's guidance for opening trusted apps](https://support.apple.com/en-us/102445#openanyway).
+The app uses an ad-hoc signature. If macOS blocks the app on first launch, see [Apple's guidance for opening trusted apps](https://support.apple.com/en-us/102445#openanyway).
 
 ## Screenshots
 
@@ -65,7 +65,7 @@ npm ci
 | --- | --- |
 | `npm run dev` | Start the Tauri app in development mode. |
 | `npm run build` | Build the release executable. |
-| `npm run build -- --bundles app --no-sign` | Build the unsigned macOS `.app` bundle. |
+| `npm run build -- --bundles app` | Build the ad-hoc-signed macOS `.app` bundle. |
 | `npm run tauri -- info` | Show the Tauri environment and project configuration. |
 | `npm run tauri -- icon src-tauri/icons/icon-source.svg` | Generate the application icons from the source SVG. |
 | `npm run tauri -- <args>` | Pass any additional Tauri CLI command or option through npm. |
@@ -73,13 +73,13 @@ npm ci
 
 With Cargo's default target directory, the release executable is at `src-tauri/target/release/duplicate-finder` (with `.exe` on Windows). The macOS app bundle is at `src-tauri/target/release/bundle/macos/DuplicateImageFinder.app`.
 
-Use `ditto` to archive the app bundle for distribution and `shasum` to write the checksum.
+Verify the app bundle signature before creating the distribution ZIP and its checksum.
 
 ```bash
-ditto -c -k --sequesterRsrc --keepParent \
-  src-tauri/target/release/bundle/macos/DuplicateImageFinder.app \
-  DuplicateImageFinder-macOS.zip
-shasum -a 256 DuplicateImageFinder-macOS.zip > DuplicateImageFinder-macOS.zip.sha256
+mac_app=src-tauri/target/release/bundle/macos/DuplicateImageFinder.app
+codesign --verify --strict "$mac_app" &&
+  ditto -c -k --sequesterRsrc --keepParent "$mac_app" DuplicateImageFinder-macOS.zip &&
+  shasum -a 256 DuplicateImageFinder-macOS.zip > DuplicateImageFinder-macOS.zip.sha256
 ```
 
 Pass `--output` to the icon command to write the generated files to a separate directory.
