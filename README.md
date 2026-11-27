@@ -6,7 +6,9 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files on m
 
 ## Download for macOS
 
-Open the disk image on an Apple Silicon Mac and drag the app to **Applications**. macOS may block the unsigned app on first launch. [Download the macOS DMG](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.dmg).
+Open the disk image on an Apple Silicon Mac and drag the app to **Applications**. [Download the macOS DMG](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.dmg).
+
+If macOS blocks the unsigned app on first launch, see [Apple's guidance for opening trusted apps](https://support.apple.com/en-us/102445#openanyway).
 
 ## Screenshots
 
