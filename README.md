@@ -6,7 +6,7 @@ A Tauri v2 desktop app for finding and managing exact duplicate image files on m
 
 ## Download for macOS
 
-Open the disk image on an Apple Silicon Mac and drag the app to **Applications**. [Download the macOS DMG](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.dmg).
+On an Apple Silicon Mac, unzip the download and drag **DuplicateImageFinder.app** to **Applications**. [Download the macOS ZIP](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.zip) · [SHA-256 checksum](https://github.com/rupertgermann/duplicateFinder/releases/latest/download/DuplicateImageFinder-macOS.zip.sha256)
 
 If macOS blocks the unsigned app on first launch, see [Apple's guidance for opening trusted apps](https://support.apple.com/en-us/102445#openanyway).
 
@@ -65,14 +65,22 @@ npm ci
 | --- | --- |
 | `npm run dev` | Start the Tauri app in development mode. |
 | `npm run build` | Build the release executable. |
-| `npm run build -- --bundles app` | Build the macOS `.app` bundle. |
-| `npm run build -- --bundles dmg --no-sign` | Build an unsigned macOS disk image for the host architecture. |
+| `npm run build -- --bundles app --no-sign` | Build the unsigned macOS `.app` bundle. |
 | `npm run tauri -- info` | Show the Tauri environment and project configuration. |
 | `npm run tauri -- icon src-tauri/icons/icon-source.svg` | Generate the application icons from the source SVG. |
 | `npm run tauri -- <args>` | Pass any additional Tauri CLI command or option through npm. |
 | `cargo test --manifest-path src-tauri/Cargo.toml --locked` | Run the Rust tests. |
 
-With Cargo's default target directory, the release executable is at `src-tauri/target/release/duplicate-finder` (with `.exe` on Windows). The macOS app bundle is at `src-tauri/target/release/bundle/macos/DuplicateImageFinder.app`. Disk images are in `src-tauri/target/release/bundle/dmg/`.
+With Cargo's default target directory, the release executable is at `src-tauri/target/release/duplicate-finder` (with `.exe` on Windows). The macOS app bundle is at `src-tauri/target/release/bundle/macos/DuplicateImageFinder.app`.
+
+Use `ditto` to archive the app bundle for distribution and `shasum` to write the checksum.
+
+```bash
+ditto -c -k --sequesterRsrc --keepParent \
+  src-tauri/target/release/bundle/macos/DuplicateImageFinder.app \
+  DuplicateImageFinder-macOS.zip
+shasum -a 256 DuplicateImageFinder-macOS.zip > DuplicateImageFinder-macOS.zip.sha256
+```
 
 Pass `--output` to the icon command to write the generated files to a separate directory.
 
